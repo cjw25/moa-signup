@@ -137,3 +137,8 @@ npm run build
 범위는 로컬 회원가입 구현입니다. 로그인, 이메일 인증, 비밀번호 재설정은 포함하지 않습니다. 공개 서비스로 운영할 때는 HTTPS, 요청 제한, 실제 개인정보 처리정책, 백업 및 키 관리, 스키마 변경을 위한 마이그레이션을 추가해야 합니다. 현재 테이블은 최초 실행 시 `create_all`로 생성합니다.
 
 구현 참고: [Next.js 공식 문서](https://nextjs.org/docs/app/getting-started/installation), [FastAPI 비밀번호 해시](https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/), [SQLAlchemy 선언형 모델](https://docs.sqlalchemy.org/en/20/orm/declarative_tables.html), [Fernet](https://cryptography.io/en/latest/fernet/).
+
+
+## React 감시 대시보드 (Day 04)
+
+Flask/PostgreSQL 게시판과 React/Vite 감시 대시보드의 실행 및 DB 준비 방법은 [monitor/README.md](monitor/README.md)를 참고하세요. 기존 회원가입 서비스는 유지됩니다.

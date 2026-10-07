@@ -1,22 +1,19 @@
-from flask import Flask, jsonify, request
+from flask import Flask
 
-app = Flask(__name__)
-events = []
-
-
-@app.post("/events")
-def receive_event():
-    event = request.get_json(silent=True)
-    if not isinstance(event, dict):
-        return jsonify(error="JSON 객체가 필요합니다."), 400
-    events.append(event)
-    return "", 204
+from routes.auth import auth
+from routes.events import events
+from routes.notes import notes
 
 
-@app.get("/events")
-def list_events():
-    return jsonify(events)
+def create_app():
+    app = Flask(__name__)
+    app.register_blueprint(auth)
+    app.register_blueprint(events)
+    app.register_blueprint(notes)
+    return app
 
+
+app = create_app()
 
 if __name__ == "__main__":
-    app.run(port=5001)
+    app.run(port=5200, debug=True)

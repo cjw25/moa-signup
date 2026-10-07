@@ -1,0 +1,53 @@
+name: Board and monitor integration
+
+on:
+  push:
+    branches: [feature/flask-postgresql-board]
+  pull_request:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mini_watch
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mini_watch"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/mini_watch
+      MONITOR_URL: http://127.0.0.1:5200/events
+      MONITOR_SECRET_KEY: ci-only-secret-key-for-session-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: |
+          python -m pip install -r general/requirements-dev.txt -r monitor/backend/requirements-dev.txt
+          cd monitor/frontend
+          npm ci
+      - name: Validate source and build React
+        run: |
+          python -m compileall -q general monitor/backend tests
+          (cd general && python -m pytest -q tests)
+          (cd monitor/backend && python -m pytest -q tests)
+          (cd monitor/frontend && npm run build)
+      - name: Prepare database and run services
+        run: |
+          PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d mini_watch -f general/sql/posts.sql
+          PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d mini_watch -f monitor/backend/sql/schema.sql
+          (cd monitor/backend && python -m flask --app app run --host 127.0.0.1 --port 5200 --no-reload > /tmp/monitor.log 2>&1 &)
+          (cd general && python -m flask --app app run --host 127.0.0.1 --port 5100 --no-reload > /tmp/general.log 2>&1 &)
+          (cd monitor/frontend && npm run dev -- --host 127.0.0.1 --port 5173 > /tmp/frontend.log 2>&1 &)
+          python tests/integration.py

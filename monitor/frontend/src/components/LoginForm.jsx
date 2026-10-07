@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { login } from '../api/auth'
 
-export default function LoginForm({ onLogin }) {
+export default function LoginForm({ onLogin, initialError = '' }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -24,7 +24,7 @@ export default function LoginForm({ onLogin }) {
   return <main className="login card"><h1>Mini Watch</h1><p>운영자 로그인</p><form onSubmit={submit}>
     <label>아이디<input value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" /></label>
     <label>비밀번호<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" /></label>
-    {error && <p className="error" role="alert">{error}</p>}
+    {(error || initialError) && <p className="error" role="alert">{error || initialError}</p>}
     <button disabled={busy}>{busy ? '확인 중...' : '로그인'}</button>
   </form></main>
 }

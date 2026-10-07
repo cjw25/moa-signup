@@ -48,4 +48,5 @@ jobs:
           PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d mini_watch -f monitor/backend/sql/schema.sql
           (cd monitor/backend && python -m flask --app app run --host 127.0.0.1 --port 5200 --no-reload > /tmp/monitor.log 2>&1 &)
           (cd general && python -m flask --app app run --host 127.0.0.1 --port 5100 --no-reload > /tmp/general.log 2>&1 &)
+          (cd monitor/frontend && npm run dev -- --host 127.0.0.1 --port 5173 > /tmp/frontend.log 2>&1 &)
           python tests/integration.py

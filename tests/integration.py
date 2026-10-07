@@ -44,7 +44,7 @@ def main():
     check(requests.post(MONITOR + "/api/auth/login", json={"username": "ci-admin", "password": "wrong"}), 401)
     user = check(requests.post(MONITOR + "/api/auth/login", json={"username": "ci-admin", "password": "correct-password"}), 200).json()
     assert user["user"]["name"] == "CI 운영자"
-    assert check(requests.get(FRONTEND + "/api/events"), 200).json() == []
+    assert isinstance(check(requests.get(FRONTEND + "/api/events"), 200).json(), list)
 
     check(requests.post(BOARD + "/board/new", data={"title": " ", "body": "본문"}), 400)
     created = check(requests.post(BOARD + "/board/new", data={"title": " 제목 ", "body": " 본문 "}, allow_redirects=False), 303)

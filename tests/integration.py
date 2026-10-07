@@ -11,6 +11,7 @@ from werkzeug.security import generate_password_hash
 BOARD = "http://127.0.0.1:5100"
 MONITOR = "http://127.0.0.1:5200"
 FRONTEND = "http://127.0.0.1:5173"
+API = FRONTEND + "/api"
 
 
 def ready(url):
@@ -40,11 +41,15 @@ def main():
             ("ci-admin", "CI 운영자", generate_password_hash("correct-password")),
         )
 
-    check(requests.post(MONITOR + "/api/auth/login", json={"username": "", "password": "x"}), 400)
-    check(requests.post(MONITOR + "/api/auth/login", json={"username": "ci-admin", "password": "wrong"}), 401)
-    user = check(requests.post(MONITOR + "/api/auth/login", json={"username": "ci-admin", "password": "correct-password"}), 200).json()
+    check(requests.get(API + "/events"), 401)
+    check(requests.get(API + "/notes"), 401)
+    check(requests.post(API + "/auth/login", json={"username": "", "password": "x"}), 400)
+    check(requests.post(API + "/auth/login", json={"username": "ci-admin", "password": "wrong"}), 401)
+    browser = requests.Session()
+    user = check(browser.post(API + "/auth/login", json={"username": "ci-admin", "password": "correct-password"}), 200).json()
     assert user["user"]["name"] == "CI 운영자"
-    assert isinstance(check(requests.get(FRONTEND + "/api/events"), 200).json(), list)
+    assert check(browser.get(API + "/auth/me"), 200).json()["user"]["name"] == "CI 운영자"
+    assert isinstance(check(browser.get(API + "/events"), 200).json(), list)
 
     check(requests.post(BOARD + "/board/new", data={"title": " ", "body": "본문"}), 400)
     created = check(requests.post(BOARD + "/board/new", data={"title": " 제목 ", "body": " 본문 "}, allow_redirects=False), 303)
@@ -59,25 +64,33 @@ def main():
     check(requests.post(BOARD + f"/board/{post_id}/delete", allow_redirects=False), 303)
     check(requests.get(BOARD + detail_path), 404)
 
-    events = check(requests.get(MONITOR + "/api/events"), 200).json()
+    events = check(browser.get(API + "/events"), 200).json()
     assert any(e["path"] == "/board/999999" and e["status_code"] == 404 for e in events)
     assert any(e["path"] == detail_path and e["method"] == "GET" for e in events)
-    check(requests.post(MONITOR + "/api/notes", json={"title": " ", "body": "내용"}), 400)
-    note = check(requests.post(MONITOR + "/api/notes", json={"title": " 제목 ", "body": " 내용 "}), 201).json()
+    filtered = check(browser.get(API + "/events", params={"path": "/board/999999", "status": 404}), 200).json()
+    assert len(filtered) >= 1 and all(e["status_code"] == 404 and "/board/999999" in e["path"] for e in filtered)
+    assert len(check(browser.get(API + "/events"), 200).json()) >= len(filtered)
+    check(browser.get(API + "/events", params={"status": "bad"}), 400)
+    check(browser.post(API + "/notes", json={"title": " ", "body": "내용"}), 400)
+    note = check(browser.post(API + "/notes", json={"title": " 제목 ", "body": " 내용 "}), 201).json()
     note_id = note["id"]
     assert note["title"] == "제목"
-    assert check(requests.get(MONITOR + f"/api/notes/{note_id}"), 200).json()["body"] == "내용"
-    check(requests.put(MONITOR + f"/api/notes/{note_id}", json={"title": "수정", "body": " "}), 400)
-    assert check(requests.get(MONITOR + f"/api/notes/{note_id}"), 200).json()["body"] == "내용"
-    check(requests.put(MONITOR + f"/api/notes/{note_id}", json={"title": "수정", "body": "변경"}), 200)
-    assert any(n["id"] == note_id and n["body"] == "변경" for n in check(requests.get(MONITOR + "/api/notes"), 200).json())
+    assert note["status"] == "확인 전"
+    assert check(browser.get(API + f"/notes/{note_id}"), 200).json()["body"] == "내용"
+    check(browser.put(API + f"/notes/{note_id}", json={"title": "수정", "body": " "}), 400)
+    assert check(browser.get(API + f"/notes/{note_id}"), 200).json()["body"] == "내용"
+    check(browser.put(API + f"/notes/{note_id}", json={"title": "수정", "body": "변경", "status": "완료"}), 200)
+    assert any(n["id"] == note_id and n["body"] == "변경" and n["status"] == "완료" for n in check(browser.get(API + "/notes"), 200).json())
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-        assert conn.execute("SELECT body FROM observation_notes WHERE id = %s", (note_id,)).fetchone()[0] == "변경"
+        assert conn.execute("SELECT body, status FROM observation_notes WHERE id = %s", (note_id,)).fetchone() == ("변경", "완료")
         assert conn.execute("SELECT COUNT(*) FROM request_events").fetchone()[0] > 0
-    check(requests.delete(MONITOR + f"/api/notes/{note_id}"), 204)
-    check(requests.get(MONITOR + f"/api/notes/{note_id}"), 404)
-    check(requests.put(MONITOR + f"/api/notes/{note_id}", json={"title": "x", "body": "y"}), 404)
-    check(requests.delete(MONITOR + f"/api/notes/{note_id}"), 404)
+    check(browser.delete(API + f"/notes/{note_id}"), 204)
+    check(browser.get(API + f"/notes/{note_id}"), 404)
+    check(browser.put(API + f"/notes/{note_id}", json={"title": "x", "body": "y"}), 404)
+    check(browser.delete(API + f"/notes/{note_id}"), 404)
+    check(browser.post(API + "/auth/logout"), 204)
+    check(browser.get(API + "/auth/me"), 401)
+    check(browser.get(API + "/notes"), 401)
     print("PostgreSQL integration scenario passed")
 
 

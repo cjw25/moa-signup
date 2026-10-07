@@ -23,6 +23,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/mini_watch
       MONITOR_URL: http://127.0.0.1:5200/events
+      MONITOR_SECRET_KEY: ci-only-secret-key-for-session-tests
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

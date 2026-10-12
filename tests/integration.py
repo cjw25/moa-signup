@@ -94,7 +94,7 @@ def main():
     check(browser.post(API + "/auth/logout"), 204)
     check(browser.get(API + "/auth/me"), 401)
     check(browser.get(API + "/notes"), 401)
-    assert "운영자 로그인" in check(requests.get(NEXT_FRONTEND), 200).text
+    assert "관찰 메모" in check(requests.get(NEXT_FRONTEND), 200).text
     check(requests.get(NEXT_API + "/notes"), 401)
     next_browser = requests.Session()
     check(next_browser.post(NEXT_API + "/auth/login", json={"username": "ci-admin", "password": "correct-password"}), 200)

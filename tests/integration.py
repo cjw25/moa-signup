@@ -12,6 +12,8 @@ BOARD = "http://127.0.0.1:5100"
 MONITOR = "http://127.0.0.1:5200"
 FRONTEND = "http://127.0.0.1:5173"
 API = FRONTEND + "/api"
+NEXT_FRONTEND = "http://127.0.0.1:3002"
+NEXT_API = NEXT_FRONTEND + "/api"
 
 
 def ready(url):
@@ -34,6 +36,7 @@ def main():
     ready(BOARD)
     ready(MONITOR + "/api/events")
     ready(FRONTEND)
+    ready(NEXT_FRONTEND)
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         conn.execute(
             "INSERT INTO monitor_users (username, display_name, password_hash) "
@@ -91,6 +94,31 @@ def main():
     check(browser.post(API + "/auth/logout"), 204)
     check(browser.get(API + "/auth/me"), 401)
     check(browser.get(API + "/notes"), 401)
+    assert "관찰 메모" in check(requests.get(NEXT_FRONTEND), 200).text
+    check(requests.get(NEXT_API + "/notes"), 401)
+    next_browser = requests.Session()
+    check(next_browser.post(NEXT_API + "/auth/login", json={"username": "ci-admin", "password": "correct-password"}), 200)
+    assert check(next_browser.get(NEXT_API + "/auth/me"), 200).json()["user"]["name"] == "CI 운영자"
+    check(next_browser.post(NEXT_API + "/notes", json={"title": " ", "body": "본문"}), 400)
+    next_note = check(next_browser.post(NEXT_API + "/notes", json={"title": "Next 메모", "body": "저장 내용", "status": "확인 전"}), 201).json()
+    next_id = next_note["id"]
+    assert check(next_browser.get(NEXT_API + f"/notes/{next_id}"), 200).json()["body"] == "저장 내용"
+    assert any(n["id"] == next_id for n in check(next_browser.get(NEXT_API + "/notes"), 200).json())
+    reloaded_browser = requests.Session()
+    reloaded_browser.cookies.update(next_browser.cookies)
+    assert any(n["id"] == next_id for n in check(reloaded_browser.get(NEXT_API + "/notes"), 200).json())
+    check(next_browser.put(NEXT_API + f"/notes/{next_id}", json={"title": "수정", "body": " "}), 400)
+    assert check(next_browser.get(NEXT_API + f"/notes/{next_id}"), 200).json()["body"] == "저장 내용"
+    check(next_browser.put(NEXT_API + f"/notes/{next_id}", json={"title": "수정", "body": "DB 변경", "status": "완료"}), 200)
+    assert check(next_browser.get(NEXT_API + f"/notes/{next_id}"), 200).json()["status"] == "완료"
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        assert conn.execute("SELECT body, status FROM observation_notes WHERE id = %s", (next_id,)).fetchone() == ("DB 변경", "완료")
+    check(next_browser.delete(NEXT_API + f"/notes/{next_id}"), 204)
+    check(next_browser.get(NEXT_API + f"/notes/{next_id}"), 404)
+    check(next_browser.put(NEXT_API + f"/notes/{next_id}", json={"title": "x", "body": "y"}), 404)
+    check(next_browser.delete(NEXT_API + f"/notes/{next_id}"), 404)
+    check(next_browser.post(NEXT_API + "/auth/logout"), 204)
+    check(next_browser.get(NEXT_API + "/notes"), 401)
     print("PostgreSQL integration scenario passed")
 
 

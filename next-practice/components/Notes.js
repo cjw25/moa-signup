@@ -56,7 +56,7 @@ export default function Notes() {
         </form>
       </section>
       <section className="panel"><div className="section-heading"><h2>메모 목록</h2><span>{notes.length}개</span></div>
-        {notes.length === 0 ? <p className="empty">등록된 메모가 없습니다.</p> : <ul className="note-list">{notes.map(note => <li key={note.id}><p>{note.text}</p><div className="actions"><button className="secondary" onClick={() => edit(note)}>수정</button><button className="danger" onClick={() => setDeletingId(note.id)}>삭제</button></div></li>)}</ul>}
+        {notes.length === 0 ? <p className="empty">아직 메모가 없습니다. 위 입력칸에서 첫 메모를 등록해 보세요.</p> : <ul className="note-list">{notes.map(note => <li key={note.id}><p>{note.text}</p><div className="actions"><button className="secondary" onClick={() => edit(note)}>수정</button><button className="danger" onClick={() => setDeletingId(note.id)}>삭제</button></div></li>)}</ul>}
       </section>
       {deletingId !== null && <div className="dialog-backdrop"><div className="dialog panel" role="dialog" aria-modal="true" aria-labelledby="delete-title"><h2 id="delete-title">메모 삭제 확인</h2><p>선택한 메모만 삭제합니다. 계속하시겠습니까?</p><div className="actions"><button className="danger" onClick={confirmDelete}>삭제 확인</button><button className="secondary" onClick={() => setDeletingId(null)}>취소</button></div></div></div>}
     </div>

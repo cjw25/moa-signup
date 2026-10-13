@@ -45,13 +45,21 @@
 
 ## 문제 진단과 실패 안내
 
-- 감시 화면에서 503이면 Next의 `MONITOR_API_URL` 누락을, 502이면 주소·감시 Flask 가동·Next 서버 로그를 먼저 확인한다. 화면은 오류 문구를 표시하고 로그인 버튼, 기록 불러오기, 메모 새로고침으로 재시도할 수 있다.
-- Flask의 DB 조회/저장이 실패하면 `/health` 결과와 별개로 해당 Flask의 DB 연결 로그, 해당 Supabase 프로젝트의 Session pooler Host/User, 암호, SSL 설정을 확인한다.
-- 잘못된 로그인 입력·기록 필터·메모 본문은 API의 400/401 응답과 화면 오류 문구를 확인한다. 기록 전송 403이면 양쪽 `EVENT_TOKEN`을 비교한다.
+| 증상 | 코드에서 응답한 곳 | 먼저 확인할 곳 |
+|---|---|---|
+| 감시 화면 `/api/...`가 `503`와 `감시 API 주소가 설정되지 않았습니다.` | Next `app/api/[...path]/route.js`의 `MONITOR_API_URL` 누락 분기 | 감시 Next 서비스의 `MONITOR_API_URL` 서버 환경 변수 |
+| 감시 화면 `/api/...`가 `502`와 `감시 API에 연결하지 못했습니다. 잠시 후 다시 불러와 주세요.` | 같은 Route Handler의 `fetch` 연결 예외 처리 | Next 서비스 로그, 감시 Flask의 HTTPS 기준 주소와 실행 상태 |
+| 일반 앱은 동작하지만 감시 기록이 없음 | `general/request_logging.py`의 전송 경고 또는 감시 `routes/events.py`의 토큰 `403` | 일반 Flask 로그, `MONITOR_URL`의 `/api/events`, 양쪽 `EVENT_TOKEN` |
+| 로그인·게시글·메모 조회나 저장이 실패 | 각 Flask의 `db.py`와 repositories가 PostgreSQL에 연결·질의 | **실패한 Flask** 로그의 DB 예외, 해당 Supabase 프로젝트의 Session pooler Host/User, 암호와 SSL 설정 |
+| 로그인 입력 오류 `400`/`401`, 기록 필터 오류 `400`, 메모 본문·상태 오류 `400`, 일반 게시글 입력 오류 `400` | 감시 `routes/auth.py`, `routes/events.py`, `routes/notes.py`; 일반 `routes/posts.py` | API 응답 `message` 또는 일반 화면 오류 문구와 입력값 |
+
+Next 프록시는 감시 Flask가 응답한 상태 코드(예: `400`, `401`, DB 예외의 `500`)를 그대로 전달한다. 연결 자체가 안 될 때의 `502`와 구별한다. `lib/api.js`는 JSON `message`와 HTTP `status`를 Error에 담고, `components/MemoDashboard.js`의 `report()` 및 첫 `getMe()` 실패 처리에서 `role="alert"` 오류 문구를 띄운다. 로그인 화면은 **로그인**을 다시 눌러 요청하고, 로그인 후에는 `components/EventList.js`의 **기록 불러오기** 또는 메모 목록의 **새로고침** 버튼이 `refreshEvents()`/`refresh()`를 다시 실행한다. 이 함수들은 시작할 때 이전 오류를 지운다.
+
+두 Flask의 `/health`는 `app.py`에서 DB 쿼리를 실행하지 않고 `{"status":"ok"}`를 반환한다. 따라서 `200`은 프로세스 상태만 뜻하며 DB 연결·로그인·쓰기 성공의 증거가 아니다. 실제 계정 로그인과 게시글/메모 CRUD 및 DB 행 조회를 별도로 확인한다.
 
 ## Sentry와 오류 수정 이력
 
-`general/observability.py`, `monitor/backend/observability.py`는 앱 생성 시 초기화된다. `send_default_pii=False`는 기본 사용자 정보 수집을 끄고 `max_request_body_size="never"`는 본문 수집을 막는다. `before_send`는 요청 본문·쿠키·헤더·환경·쿼리 문자열과 사용자 필드를 제거한다. 두 서비스는 `mini-general`, `mini-monitor` 태그로 구분한다.
+`general/observability.py`, `monitor/backend/observability.py`는 각 `app.py`의 `create_app()`에서 초기화된다. `send_default_pii=False`는 기본 사용자 정보 수집을 끄고 `max_request_body_size="never"`는 요청 본문 자동 수집을 막는다. `before_send=remove_private_data`는 전송 직전에 최상위 `user`와 요청의 `data`(본문), `cookies`(세션 쿠키), `headers`(인증 헤더 포함), `env`(환경값), `query_string`(URL 매개변수)을 삭제한다. 따라서 개발 실행과 Waitress 실행에 같은 제외 규칙이 적용된다. 두 서비스는 `mini-general`, `mini-monitor` 태그로 구분한다.
 
 | 커밋 | 변경 | 의미 |
 |---|---|---|

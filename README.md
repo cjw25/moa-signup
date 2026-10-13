@@ -6,6 +6,23 @@
 
 이번 작업은 Flask Dockerfile의 Waitress 실행, 환경 변수 기반 DB 연결과 배포 SQL, 기록 토큰 검증, Next Route Handler의 쿠키 전달, 앱 초기화 시 Sentry 설정, 실습 오류 수정을 포함합니다. 현재 외부 서비스는 **미배포**이며 실제 배포 URL과 Sentry 수신은 확인되지 않았습니다. 작업 커밋은 `5248d81`(통합 준비), `1becad4`(오류 수정), `65a7ec3`(문서화), `6956ba4`(프록시 204 응답 수정)입니다.
 
+### Day2 선택 항목 확인
+
+**1. 감시 API 주소·DB·입력 오류 구분.** 감시 화면에서 `/api/...` 호출이 `503`이고 `감시 API 주소가 설정되지 않았습니다.`가 보이면 Next 서버의 `MONITOR_API_URL` 누락이다. `502`와 `감시 API에 연결하지 못했습니다. 잠시 후 다시 불러와 주세요.`가 보이면 `monitor/next-frontend/app/api/[...path]/route.js`가 감시 Flask에 연결하지 못한 것이다. Next 서비스 로그와 `MONITOR_API_URL`의 HTTPS 기준 주소, 감시 Flask의 실행 상태를 먼저 확인한다. 일반 Flask의 기록 전송만 실패하면 `general/request_logging.py`의 `감시 서버 전송 실패` 경고, `MONITOR_URL`의 `/api/events` 접미사, 양쪽 `EVENT_TOKEN`을 확인한다. 감시 Flask가 실제로 응답한 `400`·`401`·`403`·`500`은 프록시가 상태 코드를 유지하므로 `502`와 구분된다.
+
+DB 오류는 일반 게시글 또는 감시 메모·기록의 조회·저장 시 나타난다. 해당 Flask 서비스 로그의 PostgreSQL 예외와 **그 앱의** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_SSLMODE`를 확인한다. 일반 DB와 감시 DB는 다른 Supabase 프로젝트다. 잘못된 입력은 감시 `routes/auth.py`, `routes/events.py`, `routes/notes.py`가 JSON `message`와 `400` 또는 인증 실패 `401`을 반환하고, 일반 게시글 `routes/posts.py`는 입력 오류를 화면에 `400`으로 표시한다. 이때는 DB 주소를 바꾸기 전에 입력값과 API 응답을 확인한다. 두 Flask의 `/health`는 `app.py`에서 DB 조회 없이 `{"status":"ok"}`를 반환하는 **프로세스 확인**이다. 따라서 `/health`가 `200`이어도 DB 접속·계정 로그인·메모 저장 성공을 뜻하지 않는다. 로그인과 DB CRUD를 별도로 실행해 확인한다.
+
+**2. Next 연결 실패 안내와 재시도.** `monitor/next-frontend/app/api/[...path]/route.js`는 `MONITOR_API_URL`이 없을 때 JSON `message`와 `503`, 연결 예외일 때 JSON `message`와 `502`를 반환한다. `lib/api.js`는 실패 응답의 `message`와 `status`를 Error에 담고, `components/MemoDashboard.js`의 `report()` 또는 초기 로그인 상태 확인의 `catch`가 이를 `role="alert"`로 표시한다. 로그인 화면에서는 주소를 고친 후 **로그인**을 다시 누른다. 로그인 중인 화면에서는 `components/EventList.js`의 **기록 불러오기** 또는 메모 목록의 **새로고침**을 누르면 `refreshEvents()`/`refresh()`가 API를 다시 호출하고 이전 오류 문구를 지운다. 실제 API가 보낸 `400`·`401` 등은 프록시가 그대로 전달한다.
+
+**3. Sentry 자료 제외.** 두 Flask의 `observability.py`는 `send_default_pii=False`로 기본 사용자 정보 전송을 끄고 `max_request_body_size="never"`로 요청 본문 자동 수집을 막는다. 추가로 `before_send=remove_private_data`가 전송 직전 최상위 `user`를 삭제하고, `request`의 `data`(본문), `cookies`(세션 쿠키), `headers`(인증 헤더 포함), `env`(환경값), `query_string`(URL 매개변수)을 제거한다. 두 앱의 `app.py`가 앱 생성 시 이 초기화를 호출하므로 개발 실행과 Waitress 실행에 같은 설정이 적용된다.
+
+**4. 실습 오류 수정 전후.** `5248d81`의 `general/app.py` `create_app()` 안 `sentry_test()`는 `jsonify(result=1 / 0)`에서 `ZeroDivisionError`를 일으킨다. `1becad4`는 그 한 줄을 `jsonify(status="ok", message="실습 오류가 수정되었습니다.")`로 바꿔 정상 JSON을 반환한다. 실제 변경은 `git diff 5248d81 1becad4 -- general/app.py`로 확인할 수 있고 바로 아래에도 제시한다. 함수 위의 `@login_required`와 `ENABLE_SENTRY_TEST` 검사, 게시글 라우트는 그대로 유지된다. `general/tests/test_board.py`는 로그인하지 않은 요청, 스위치가 꺼진 요청, 켜진 뒤의 정상 응답을 검사한다.
+
+```diff
+-        return jsonify(result=1 / 0)
++        return jsonify(status="ok", message="실습 오류가 수정되었습니다.")
+```
+
 Python **FastAPI + SQLAlchemy 2** 백엔드와 **Next.js App Router + TypeScript** 프론트엔드로 만든 회원가입 프로젝트입니다. 이름, 이메일, 비밀번호, 비밀번호 확인을 입력해 실제 SQLite DB에 회원을 등록합니다. 한국어 반응형 화면, 입력값 검증, 비밀번호 보기, 처리 중 표시, 오류 및 완료 화면을 제공합니다.
 
 ## 빠른 실행 (Windows PowerShell)

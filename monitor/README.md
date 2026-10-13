@@ -1,5 +1,7 @@
 # React 감시 대시보드
 
+Docker 과제의 실행 방법은 [루트 README의 Docker 절](../README.md#docker-일반감시-미니프로젝트-day-1)을 참고하세요. Docker 구성은 일반 DB와 감시 DB를 별도 컨테이너·볼륨으로 분리하고 `monitor/next-frontend` Next.js 화면을 사용합니다. 아래 내용은 이전 로컬 React/Vite 실행 방법입니다.
+
 기존 `general` 게시판을 유지하고 Flask 감시 API와 React/Vite 화면을 추가했습니다. 요청 기록과 관찰 메모, 운영자 계정은 PostgreSQL에 저장합니다. Flask의 서명된 쿠키 세션으로 로그인 상태를 유지하며, 새로고침 후에도 대시보드로 돌아옵니다. 요청 기록 조회와 메모 API는 로그인 여부를 검사합니다. 일반 서비스의 기록 수신 주소 `/events`는 서버 간 전송을 위해 별도로 열어 둡니다.
 
 ## 준비와 실행 (Windows CMD)

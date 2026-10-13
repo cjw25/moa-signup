@@ -38,6 +38,11 @@ services:
     depends_on:
       monitor-api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     networks: [monitor-front]
 
   monitor-gateway:
@@ -50,7 +55,7 @@ services:
       monitor-api:
         condition: service_healthy
       monitor-web:
-        condition: service_started
+        condition: service_healthy
     networks: [monitor-front]
 
 networks:

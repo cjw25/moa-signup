@@ -188,6 +188,8 @@ docker compose -f compose-general.yaml exec general-api getent hosts monitor-api
 
 `config --quiet`는 Compose 설정을 파싱하고, `ps`는 컨테이너 상태·DB healthcheck와 gateway 공개 포트를 본다. `logs`는 Flask·Next 시작 또는 오류를 확인한다. `network inspect`는 공유 망의 두 API 참여를 확인한다. API 안의 `getent hosts monitor-api`는 이름이 IP로 해석되는지만 확인한다. **실제 기록 전달은** 일반 로그인 후 감시 `/api/events`의 결과로 따로 확인한다.
 
+감시 `monitor-web`에도 HTTP healthcheck를 두고 `monitor-gateway`가 화면 준비를 기다리게 했다. 이 작은 설정 개선은 Next.js 빌드 이미지가 실행을 시작했지만 아직 요청을 받지 못하는 순간의 gateway 시작 순서를 명확히 한다.
+
 자료 보존을 확인하려면 두 프로젝트를 별도로 내려 다시 올린다. `down`에 `-v`를 붙이지 않는다. DB의 실제 데이터 경로 `/var/lib/postgresql/data`에 각각 named volume이 연결되어 있어 컨테이너를 새로 만들어도 기록·메모·계정이 남는다.
 
 ```powershell

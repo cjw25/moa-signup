@@ -28,7 +28,8 @@ async function proxy(request, { params }) {
     }
     for (const cookie of response.headers.getSetCookie()) returned.append("set-cookie", cookie);
     returned.set("cache-control", "no-store");
-    return new Response(await response.arrayBuffer(), { status: response.status, headers: returned });
+    const body = [204, 205, 304].includes(response.status) ? null : await response.arrayBuffer();
+    return new Response(body, { status: response.status, headers: returned });
   } catch {
     return Response.json({ message: "감시 API에 연결하지 못했습니다. 잠시 후 다시 불러와 주세요." }, { status: 502 });
   }

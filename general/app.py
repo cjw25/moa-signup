@@ -32,7 +32,7 @@ def create_app():
     def sentry_test():
         if os.getenv("ENABLE_SENTRY_TEST", "false").lower() != "true":
             return jsonify(message="실습 경로가 꺼져 있습니다."), 404
-        return jsonify(result=1 / 0)
+        return jsonify(status="ok", message="실습 오류가 수정되었습니다.")
     register_request_logging(app)
     return app
 

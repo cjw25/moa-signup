@@ -90,3 +90,16 @@ def test_login_sends_typed_events(monkeypatch):
     assert client.get("/").status_code == 200
     assert client.post("/logout").status_code == 303
     assert client.get("/").status_code == 302
+
+
+def test_sentry_exercise_requires_login_and_flag(monkeypatch):
+    monkeypatch.setenv("GENERAL_SECRET_KEY", "unit-test-general-session-key")
+    monkeypatch.delenv("MONITOR_URL", raising=False)
+    monkeypatch.setenv("ENABLE_SENTRY_TEST", "false")
+    client = create_app().test_client()
+    assert client.get("/api/sentry-test").status_code == 302
+    with client.session_transaction() as session:
+        session["user"] = {"id": 1, "username": "student"}
+    assert client.get("/api/sentry-test").status_code == 404
+    monkeypatch.setenv("ENABLE_SENTRY_TEST", "true")
+    assert client.get("/api/sentry-test").json["status"] == "ok"

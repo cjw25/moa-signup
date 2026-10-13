@@ -2,6 +2,7 @@ from flask import Blueprint, redirect, render_template, request, url_for
 
 from post_rules import validate_post
 from repositories import posts
+from routes.auth import login_required
 
 board = Blueprint("board", __name__)
 
@@ -11,11 +12,13 @@ def missing_post():
 
 
 @board.get("/")
+@login_required
 def index():
     return render_template("index.html", posts=posts.list_posts())
 
 
 @board.get("/board/<int:post_id>")
+@login_required
 def detail(post_id):
     post = posts.find_post(post_id)
     if post is None:
@@ -24,6 +27,7 @@ def detail(post_id):
 
 
 @board.route("/board/new", methods=["GET", "POST"])
+@login_required
 def new():
     if request.method == "GET":
         return render_template("new.html", title="", body="")
@@ -35,6 +39,7 @@ def new():
 
 
 @board.route("/board/<int:post_id>/edit", methods=["GET", "POST"])
+@login_required
 def edit(post_id):
     post = posts.find_post(post_id)
     if post is None:
@@ -50,6 +55,7 @@ def edit(post_id):
 
 
 @board.route("/board/<int:post_id>/delete", methods=["GET", "POST"])
+@login_required
 def delete(post_id):
     if request.method == "GET":
         post = posts.find_post(post_id)

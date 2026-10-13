@@ -28,7 +28,7 @@ def test_event_and_note_routes(monkeypatch):
     stored_notes = {}
     next_id = iter(range(1, 100))
     monkeypatch.setattr(events.repo, "list_events", lambda path="", status=None: [event for event in stored_events if (not path or path in event["path"]) and (status is None or event["status_code"] == status)])
-    monkeypatch.setattr(events.repo, "create_event", lambda method, path, status, at: stored_events.append({"id": 1, "method": method, "path": path, "status_code": status, "occurred_at": at.isoformat()}))
+    monkeypatch.setattr(events.repo, "create_event", lambda method, path, status, at, kind: stored_events.append({"id": 1, "method": method, "path": path, "status_code": status, "event_type": kind, "occurred_at": at.isoformat()}))
     monkeypatch.setattr(notes.repo, "list_notes", lambda: list(stored_notes.values()))
     monkeypatch.setattr(notes.repo, "find_note", lambda id: stored_notes.get(id))
 
@@ -57,6 +57,8 @@ def test_event_and_note_routes(monkeypatch):
         session["user"] = {"id": 1, "username": "admin", "name": "운영자"}
 
     assert client.post("/events", json={"method": "GET", "path": "/board/999", "status": 404, "timestamp": "2026-10-07T00:00:00+00:00"}).status_code == 204
+    assert client.post("/api/events", json={"method": "POST", "path": "/login", "status": 401, "event_type": "login_failure", "timestamp": "2026-10-07T00:00:00+00:00"}).status_code == 204
+    assert stored_events[-1]["event_type"] == "login_failure"
     assert client.get("/api/events").json[0]["status_code"] == 404
     assert len(client.get("/api/events?path=board&status=404").json) == 1
     assert client.get("/api/events?status=200").json == []

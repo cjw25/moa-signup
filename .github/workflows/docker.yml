@@ -1,0 +1,29 @@
+name: Docker general and monitor integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  docker-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install HTTP test client
+        run: python -m pip install requests
+      - name: Build and exercise both Compose projects
+        run: python tests/docker_integration.py
+      - name: Show API logs on failure
+        if: failure()
+        run: |
+          docker compose -f compose-general.yaml logs --no-color --tail=100 general-api || true
+          docker compose -f compose-monitor.yaml logs --no-color --tail=100 monitor-api monitor-web monitor-gateway || true
+      - name: Stop projects without deleting volumes
+        if: always()
+        run: |
+          docker compose -f compose-general.yaml down || true
+          docker compose -f compose-monitor.yaml down || true

@@ -142,3 +142,85 @@ npm run build
 ## React 감시 대시보드 (Day 04)
 
 Flask/PostgreSQL 게시판과 React/Vite 감시 대시보드의 실행 및 DB 준비 방법은 [monitor/README.md](monitor/README.md)를 참고하세요. 기존 회원가입 서비스는 유지됩니다.
+
+## Docker 일반·감시 미니프로젝트 (Day 1)
+
+이 저장소의 **직접 만든** `general` Flask 게시판, `monitor/backend` Flask 감시 API, `monitor/next-frontend` Next.js 화면을 사용한다. 수업의 `mini-watch-day06`을 복사하지 않았으므로 폴더 이름만 다르고 역할은 같다. 이번 작업에서 두 Compose, 세 Dockerfile과 `.dockerignore`, 두 Nginx gateway, 일반 로그인·기록 종류, 감시 기록 화면, Docker 통합 검증을 완성했다. DB 초기 SQL은 새 사본 대신 기존 `general/sql/posts.sql`과 `monitor/backend/sql/schema.sql`을 컨테이너의 `/docker-entrypoint-initdb.d/01-schema.sql`에 연결한다.
+
+### 처음 실행 (저장소 루트, Windows PowerShell)
+
+Docker 엔진이 실행 중이어야 한다. 두 Compose는 합쳐 실행하지 않는다. `.env.example`의 값은 실습 전용이며, 실제 운영용 비밀번호·세션 키를 넣지 않는다. 필요하면 루트에 `.env`를 복사해 값을 바꾼다. **이미 생성된 DB 볼륨의 비밀번호는 `.env` 변경만으로 바뀌지 않는다.**
+
+```powershell
+Copy-Item .env.example .env
+docker network create m5d1-events
+docker compose -f compose-general.yaml config --quiet
+docker compose -f compose-monitor.yaml config --quiet
+docker compose -f compose-monitor.yaml up -d --build
+docker compose -f compose-monitor.yaml ps
+docker compose -f compose-monitor.yaml logs --tail=30 monitor-api monitor-web
+curl.exe http://localhost:8082/api/health
+docker compose -f compose-monitor.yaml exec monitor-api python create_user.py
+```
+
+마지막 명령에 실습용 `operator`, 표시 이름 `운영자`, 비밀번호 `Learn123!`를 입력한다. `http://localhost:8082`에서 로그인한 뒤 같은 브라우저에서 `http://localhost:8082/api/auth/me`를 열어 HTTP 200과 운영자 정보를 확인한다. 로그인 전 이 보호 API는 401이다. **감시 API가 준비된 뒤** 일반 프로젝트를 시작한다.
+
+```powershell
+docker compose -f compose-general.yaml up -d --build
+docker compose -f compose-general.yaml ps
+docker compose -f compose-general.yaml logs --tail=30 general-api
+docker compose -f compose-general.yaml exec general-api python create_user.py
+docker network inspect m5d1-events
+docker compose -f compose-general.yaml exec general-api getent hosts monitor-api
+```
+
+일반 계정은 `student` / `Learn123!`로 만든다. 공개 주소는 일반 `http://localhost:8081`, 감시 `http://localhost:8082`다. 일반 로그인 화면에서 잘못된 비밀번호와 올바른 비밀번호를 차례로 입력하고 게시글 화면을 연다. 감시 화면에서 `기록 불러오기`를 누르면 `login_failure`·401과 `login_success`·200을 확인할 수 있다. 성공한 로그인은 실제 HTTP 응답에서 게시글 목록으로 303 이동하며, 감시 기록의 **로그인 결과 코드**는 200으로 저장한다. 감시 메모에 제목 `Docker 점검`, 내용 `로그인 실패와 성공을 확인했다`를 등록한 뒤 새로고침해 다시 조회한다.
+
+| 네트워크 | 참여 서비스 | 공개 포트 |
+| --- | --- | --- |
+| `general-front` | `general-gateway`, `general-api` | gateway의 8081만 |
+| `general-data-net` | `general-api`, `general-db` | 없음 |
+| `monitor-front` | `monitor-gateway`, `monitor-web`, `monitor-api` | gateway의 8082만 |
+| `monitor-data-net` | `monitor-api`, `monitor-db` | 없음 |
+| 외부 `m5d1-events` | `general-api`, `monitor-api` | 없음 |
+
+두 Compose의 프로젝트 이름은 `m5d1-general`, `m5d1-monitor`이고 DB 볼륨도 각각 `general-data`, `monitor-data`다. `general-api`는 `general-db:5432/general_db`, `monitor-api`는 `monitor-db:5432/monitor_db`에 접속한다. 기록 전송 주소는 `http://monitor-api:5000/api/events`다. 동일한 네트워크 **별칭만** 각 Compose에 적으면 서로 다른 격리된 망이 생겨 이름 조회가 되지 않는다. 두 파일에서 `external: true`와 실제 이름 `m5d1-events`를 같이 지정하고 두 API를 참여시켜야 한다. DB는 그 공유 망에 없다. 로컬 PC의 공개 포트나 `localhost`는 컨테이너 사이의 상대 서비스 주소가 아니다.
+
+`config --quiet`는 Compose 설정을 파싱하고, `ps`는 컨테이너 상태·DB healthcheck와 gateway 공개 포트를 본다. `logs`는 Flask·Next 시작 또는 오류를 확인한다. `network inspect`는 공유 망의 두 API 참여를 확인한다. API 안의 `getent hosts monitor-api`는 이름이 IP로 해석되는지만 확인한다. **실제 기록 전달은** 일반 로그인 후 감시 `/api/events`의 결과로 따로 확인한다.
+
+자료 보존을 확인하려면 두 프로젝트를 별도로 내려 다시 올린다. `down`에 `-v`를 붙이지 않는다. DB의 실제 데이터 경로 `/var/lib/postgresql/data`에 각각 named volume이 연결되어 있어 컨테이너를 새로 만들어도 기록·메모·계정이 남는다.
+
+```powershell
+docker compose -f compose-general.yaml down
+docker compose -f compose-monitor.yaml down
+docker compose -f compose-monitor.yaml up -d
+docker compose -f compose-general.yaml up -d
+```
+
+### 심화: 망 분리·복구, 변경 반영, DB 분리
+
+공유 망의 영향을 실험하려면 일반 API 컨테이너 ID를 얻어 **그 컨테이너만** 분리한다. 이 동안 `getent`는 `monitor-api`를 찾지 못하고 새 로그인 기록도 전송되지 않는다. 전송 실패분을 다시 보내는 큐는 없으므로 복구 후 새 실패·성공 로그인을 만든다. 마지막 명령으로 원래 공유 망 참여를 복구한다.
+
+```powershell
+$generalApi = (docker compose -f compose-general.yaml ps -q general-api)
+docker network disconnect m5d1-events $generalApi
+docker compose -f compose-general.yaml exec general-api getent hosts monitor-api
+docker network connect --alias general-api m5d1-events $generalApi
+docker compose -f compose-general.yaml exec general-api getent hosts monitor-api
+```
+
+Flask Dockerfile은 `COPY . .`로 소스를 이미지에 넣고, Compose의 볼륨은 **DB 데이터만** 연결한다. 따라서 Flask 소스를 고친 뒤 `docker compose -f compose-general.yaml restart general-api`는 이전 이미지·코드를 다시 시작할 뿐이다. 변경을 반영하려면 아래처럼 빌드 후 컨테이너를 재생성한다. 감시 API도 같은 방식이며, Next.js 소스는 이미지 빌드 중 `npm run build`를 다시 해야 한다.
+
+```powershell
+docker compose -f compose-general.yaml up -d --build --force-recreate general-api general-gateway
+docker compose -f compose-monitor.yaml up -d --build --force-recreate monitor-api monitor-web monitor-gateway
+```
+
+일반 API 안의 `getent hosts general-db`는 자기 DB IP를 찾고, `getent hosts monitor-db`는 다른 DB가 일반 DB 망이나 공유 망에 없으므로 실패한다. 이름 조회 성공은 DNS 연결만 뜻한다. 실제 DB 접속은 별도의 계정·비밀번호 인증이 필요하고, SQL 실행 성공은 그 뒤의 스키마·권한까지 확인한다.
+
+```powershell
+docker compose -f compose-general.yaml exec general-api getent hosts general-db
+docker compose -f compose-general.yaml exec general-api getent hosts monitor-db
+```
+
+Docker 적용의 핵심 커밋은 `0ce056a` (`Containerize general and monitor services with shared event network`)다. 두 Compose, Dockerfile·ignore, gateway, 일반 로그인·감시 기록 화면, SQL과 통합 검증을 추가했다. 후속 설정 개선 PR의 식별자·변경 파일·검토 결과는 병합 뒤 이 문단에 기록한다. Docker 통합 검증은 `.github/workflows/docker.yml`과 `tests/docker_integration.py`가 같은 순서로 두 Compose를 실제 실행하고, 공유 DNS·로그인 기록·메모와 `down` 뒤 DB 보존을 확인한다.

@@ -23,6 +23,7 @@ export const getMe = () => api("/auth/me");
 export const login = (username, password) => api("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
 export const logout = () => api("/auth/logout", { method: "POST" });
 export const listNotes = () => api("/notes");
+export const listEvents = () => api("/events");
 export const getNote = id => api(`/notes/${id}`);
 export const createNote = values => api("/notes", { method: "POST", body: JSON.stringify(values) });
 export const updateNote = (id, values) => api(`/notes/${id}`, { method: "PUT", body: JSON.stringify(values) });

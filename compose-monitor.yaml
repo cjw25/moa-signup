@@ -1,0 +1,65 @@
+name: m5d1-monitor
+
+services:
+  monitor-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: monitor_db
+      POSTGRES_USER: monitor
+      POSTGRES_PASSWORD: ${MONITOR_DB_PASSWORD:-monitor-practice-only}
+    volumes:
+      - monitor-data:/var/lib/postgresql/data
+      - ./monitor/backend/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitor -d monitor_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [monitor-data-net]
+
+  monitor-api:
+    build: ./monitor/backend
+    environment:
+      DB_HOST: monitor-db
+      DATABASE_URL: postgresql://monitor:${MONITOR_DB_PASSWORD:-monitor-practice-only}@monitor-db:5432/monitor_db
+      MONITOR_SECRET_KEY: ${MONITOR_SECRET_KEY:-monitor-practice-session-key-change-me}
+    depends_on:
+      monitor-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [monitor-front, monitor-data-net, m5d1-events]
+
+  monitor-web:
+    build: ./monitor/next-frontend
+    depends_on:
+      monitor-api:
+        condition: service_healthy
+    networks: [monitor-front]
+
+  monitor-gateway:
+    image: nginx:stable-alpine
+    ports:
+      - "8082:80"
+    volumes:
+      - ./gateways/monitor.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      monitor-api:
+        condition: service_healthy
+      monitor-web:
+        condition: service_started
+    networks: [monitor-front]
+
+networks:
+  monitor-front:
+  monitor-data-net:
+    internal: true
+  m5d1-events:
+    external: true
+    name: m5d1-events
+
+volumes:
+  monitor-data:

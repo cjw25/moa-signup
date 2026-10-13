@@ -13,15 +13,15 @@ def list_events(path="", status=None):
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
     with connect_db() as conn:
         return conn.execute(
-            "SELECT id, occurred_at, method, path, status_code FROM request_events"
+            "SELECT id, occurred_at, method, path, status_code, event_type FROM request_events"
             + where + " ORDER BY id DESC", params
         ).fetchall()
 
 
-def create_event(method, path, status_code, occurred_at):
+def create_event(method, path, status_code, occurred_at, event_type="http_request"):
     with connect_db() as conn:
         return conn.execute(
-            "INSERT INTO request_events (occurred_at, method, path, status_code) "
-            "VALUES (%s, %s, %s, %s) RETURNING id",
-            (occurred_at, method, path, status_code),
+            "INSERT INTO request_events (occurred_at, method, path, status_code, event_type) "
+            "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (occurred_at, method, path, status_code, event_type),
         ).fetchone()

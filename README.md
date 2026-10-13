@@ -188,6 +188,8 @@ docker compose -f compose-general.yaml exec general-api getent hosts monitor-api
 
 `config --quiet`는 Compose 설정을 파싱하고, `ps`는 컨테이너 상태·DB healthcheck와 gateway 공개 포트를 본다. `logs`는 Flask·Next 시작 또는 오류를 확인한다. `network inspect`는 공유 망의 두 API 참여를 확인한다. API 안의 `getent hosts monitor-api`는 이름이 IP로 해석되는지만 확인한다. **실제 기록 전달은** 일반 로그인 후 감시 `/api/events`의 결과로 따로 확인한다.
 
+감시 `monitor-web`에도 HTTP healthcheck를 두고 `monitor-gateway`가 화면 준비를 기다리게 했다. 이 작은 설정 개선은 Next.js 빌드 이미지가 실행을 시작했지만 아직 요청을 받지 못하는 순간의 gateway 시작 순서를 명확히 한다.
+
 자료 보존을 확인하려면 두 프로젝트를 별도로 내려 다시 올린다. `down`에 `-v`를 붙이지 않는다. DB의 실제 데이터 경로 `/var/lib/postgresql/data`에 각각 named volume이 연결되어 있어 컨테이너를 새로 만들어도 기록·메모·계정이 남는다.
 
 ```powershell
@@ -223,4 +225,4 @@ docker compose -f compose-general.yaml exec general-api getent hosts general-db
 docker compose -f compose-general.yaml exec general-api getent hosts monitor-db
 ```
 
-Docker 적용의 핵심 커밋은 `0ce056a` (`Containerize general and monitor services with shared event network`)다. 두 Compose, Dockerfile·ignore, gateway, 일반 로그인·감시 기록 화면, SQL과 통합 검증을 추가했다. 후속 설정 개선 PR의 식별자·변경 파일·검토 결과는 병합 뒤 이 문단에 기록한다. Docker 통합 검증은 `.github/workflows/docker.yml`과 `tests/docker_integration.py`가 같은 순서로 두 Compose를 실제 실행하고, 공유 DNS·로그인 기록·메모와 `down` 뒤 DB 보존을 확인한다.
+Docker 적용의 핵심 커밋은 `0ce056a` (`Containerize general and monitor services with shared event network`)다. 두 Compose, Dockerfile·ignore, gateway, 일반 로그인·감시 기록 화면, SQL과 통합 검증을 추가했다. 별도 작업 브랜치 `feature/monitor-web-health`의 개선 커밋 `bf6bd41`은 Next.js healthcheck와 gateway 대기 조건을 `compose-monitor.yaml`에 추가하고 `README.md`, `monitor/README.md`의 안내를 보완했다. [PR #15](https://github.com/cjw25/moa-signup/pull/15)의 Files changed에서 세 파일을 확인했고 `docker compose -f compose-monitor.yaml config --quiet`가 통과했다. 병합 상태와 실제 Docker CI 결과도 해당 PR에서 확인할 수 있다. Docker 통합 검증은 `.github/workflows/docker.yml`과 `tests/docker_integration.py`가 같은 순서로 두 Compose를 실제 실행하고, 공유 DNS·로그인 기록·메모와 `down` 뒤 DB 보존을 확인한다.

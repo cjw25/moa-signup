@@ -57,6 +57,8 @@
 |---|---|---|
 | `5248d81` | `general/app.py`의 `sentry_test()`에 `1 / 0` 포함; 배포·DB·프록시·Sentry 코드 추가 | 로그인과 스위치가 켜진 경우 실습 오류 재현 상태 |
 | `1becad4` | `general/app.py`, `general/tests/test_board.py` | 0으로 나누는 식을 정상 JSON으로 교체하고 로그인/스위치 검사 추가 |
+| `65a7ec3` | `deployment-plan.md`, `README.md`, 감시 API 테스트 | 배포 설정과 오류 수정 이력 문서화 |
+| `6956ba4` | `monitor/next-frontend/app/api/[...path]/route.js` | 본문 없는 204 응답을 Next 프록시가 그대로 전달하도록 수정 |
 
 오류 수정 diff (`git diff 5248d81 1becad4 -- general/app.py`):
 

@@ -4,7 +4,7 @@
 
 기존 Day1 Flask 게시판(`general/`), Flask 감시 API(`monitor/backend/`), 감시 Next.js 화면(`monitor/next-frontend/`)을 `day2-deploy` 브랜치에서 배포용으로 연결했습니다. 세 앱의 Render 설정, 별도 Supabase DB, 서버 프록시, Sentry 및 오류 수정 내역은 [deployment-plan.md](deployment-plan.md)를 보세요. 이 저장소의 기존 회원가입 프로젝트는 아래 설명대로 유지됩니다.
 
-이번 작업은 Flask Dockerfile의 Waitress 실행, 환경 변수 기반 DB 연결과 배포 SQL, 기록 토큰 검증, Next Route Handler의 쿠키 전달, 앱 초기화 시 Sentry 설정, 실습 오류 수정을 포함합니다. 현재 외부 서비스는 **미배포**이며 실제 배포 URL과 Sentry 수신은 확인되지 않았습니다. 작업 커밋은 `5248d81`(통합 준비), `1becad4`(오류 수정)입니다.
+이번 작업은 Flask Dockerfile의 Waitress 실행, 환경 변수 기반 DB 연결과 배포 SQL, 기록 토큰 검증, Next Route Handler의 쿠키 전달, 앱 초기화 시 Sentry 설정, 실습 오류 수정을 포함합니다. 현재 외부 서비스는 **미배포**이며 실제 배포 URL과 Sentry 수신은 확인되지 않았습니다. 작업 커밋은 `5248d81`(통합 준비), `1becad4`(오류 수정), `65a7ec3`(문서화), `6956ba4`(프록시 204 응답 수정)입니다.
 
 Python **FastAPI + SQLAlchemy 2** 백엔드와 **Next.js App Router + TypeScript** 프론트엔드로 만든 회원가입 프로젝트입니다. 이름, 이메일, 비밀번호, 비밀번호 확인을 입력해 실제 SQLite DB에 회원을 등록합니다. 한국어 반응형 화면, 입력값 검증, 비밀번호 보기, 처리 중 표시, 오류 및 완료 화면을 제공합니다.
 

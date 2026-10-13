@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("MONITOR_SECRET_KEY", "test-secret-only-for-this-process")
+
 from werkzeug.security import generate_password_hash
 
 from app import create_app

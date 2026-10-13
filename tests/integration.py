@@ -43,6 +43,10 @@ def main():
             "VALUES (%s, %s, %s)",
             ("ci-admin", "CI 운영자", generate_password_hash("correct-password")),
         )
+        conn.execute(
+            "INSERT INTO general_users (username, password_hash) VALUES (%s, %s)",
+            ("student", generate_password_hash("Learn123!")),
+        )
 
     check(requests.get(API + "/events"), 401)
     check(requests.get(API + "/notes"), 401)
@@ -54,20 +58,27 @@ def main():
     assert check(browser.get(API + "/auth/me"), 200).json()["user"]["name"] == "CI 운영자"
     assert isinstance(check(browser.get(API + "/events"), 200).json(), list)
 
-    check(requests.post(BOARD + "/board/new", data={"title": " ", "body": "본문"}), 400)
-    created = check(requests.post(BOARD + "/board/new", data={"title": " 제목 ", "body": " 본문 "}, allow_redirects=False), 303)
+    board = requests.Session()
+    check(board.get(BOARD, allow_redirects=False), 302)
+    check(board.post(BOARD + "/login", data={"username": "student", "password": "wrong"}), 401)
+    check(board.post(BOARD + "/login", data={"username": "student", "password": "Learn123!"}, allow_redirects=False), 303)
+    check(board.get(BOARD), 200)
+    check(board.post(BOARD + "/board/new", data={"title": " ", "body": "본문"}), 400)
+    created = check(board.post(BOARD + "/board/new", data={"title": " 제목 ", "body": " 본문 "}, allow_redirects=False), 303)
     detail_path = created.headers["Location"]
-    check(requests.get(BOARD + detail_path), 200)
-    check(requests.get(BOARD + "/board/999999"), 404)
+    check(board.get(BOARD + detail_path), 200)
+    check(board.get(BOARD + "/board/999999"), 404)
     post_id = int(detail_path.rsplit("/", 1)[-1])
-    check(requests.post(BOARD + f"/board/{post_id}/edit", data={"title": "", "body": "변경"}), 400)
-    check(requests.post(BOARD + f"/board/{post_id}/edit", data={"title": "수정", "body": "변경"}, allow_redirects=False), 303)
-    assert "수정" in check(requests.get(BOARD + detail_path), 200).text
-    check(requests.get(BOARD + f"/board/{post_id}/delete"), 200)
-    check(requests.post(BOARD + f"/board/{post_id}/delete", allow_redirects=False), 303)
-    check(requests.get(BOARD + detail_path), 404)
+    check(board.post(BOARD + f"/board/{post_id}/edit", data={"title": "", "body": "변경"}), 400)
+    check(board.post(BOARD + f"/board/{post_id}/edit", data={"title": "수정", "body": "변경"}, allow_redirects=False), 303)
+    assert "수정" in check(board.get(BOARD + detail_path), 200).text
+    check(board.get(BOARD + f"/board/{post_id}/delete"), 200)
+    check(board.post(BOARD + f"/board/{post_id}/delete", allow_redirects=False), 303)
+    check(board.get(BOARD + detail_path), 404)
 
     events = check(browser.get(API + "/events"), 200).json()
+    assert any(e["event_type"] == "login_failure" and e["status_code"] == 401 for e in events)
+    assert any(e["event_type"] == "login_success" and e["status_code"] == 200 for e in events)
     assert any(e["path"] == "/board/999999" and e["status_code"] == 404 for e in events)
     assert any(e["path"] == detail_path and e["method"] == "GET" for e in events)
     filtered = check(browser.get(API + "/events", params={"path": "/board/999999", "status": 404}), 200).json()

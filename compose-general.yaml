@@ -21,9 +21,15 @@ services:
     build: ./general
     environment:
       DB_HOST: general-db
-      DATABASE_URL: postgresql://general:${GENERAL_DB_PASSWORD:-general-practice-only}@general-db:5432/general_db
-      GENERAL_SECRET_KEY: ${GENERAL_SECRET_KEY:-general-practice-session-key-change-me}
+      DB_PORT: 5432
+      DB_NAME: general_db
+      DB_USER: general
+      DB_PASSWORD: ${GENERAL_DB_PASSWORD:-general-practice-only}
+      DB_SSLMODE: disable
+      SECRET_KEY: ${GENERAL_SECRET_KEY:-general-practice-session-key-change-me}
+      SESSION_COOKIE_SECURE: "false"
       MONITOR_URL: http://monitor-api:5000/api/events
+      EVENT_TOKEN: ${EVENT_TOKEN:-local-practice-event-token}
     depends_on:
       general-db:
         condition: service_healthy

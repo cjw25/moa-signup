@@ -1,5 +1,7 @@
 .env
 .env.local
+.env.*
+!.env.example
 .venv/
 node_modules/
 .next/
@@ -11,3 +13,4 @@ backend/data/*
 !backend/data/.gitkeep
 *.log
 .run/
+*.sqlite3

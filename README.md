@@ -223,4 +223,4 @@ docker compose -f compose-general.yaml exec general-api getent hosts general-db
 docker compose -f compose-general.yaml exec general-api getent hosts monitor-db
 ```
 
-Docker 적용 커밋과 후속 설정 개선 PR의 식별자·변경 파일·검토 결과는 아래 Git 작업 기록에 추가한다. Docker 통합 검증은 `.github/workflows/docker.yml`과 `tests/docker_integration.py`가 같은 순서로 두 Compose를 실제 실행하고, 공유 DNS·로그인 기록·메모와 `down` 뒤 DB 보존을 확인한다.
+Docker 적용의 핵심 커밋은 `0ce056a` (`Containerize general and monitor services with shared event network`)다. 두 Compose, Dockerfile·ignore, gateway, 일반 로그인·감시 기록 화면, SQL과 통합 검증을 추가했다. 후속 설정 개선 PR의 식별자·변경 파일·검토 결과는 병합 뒤 이 문단에 기록한다. Docker 통합 검증은 `.github/workflows/docker.yml`과 `tests/docker_integration.py`가 같은 순서로 두 Compose를 실제 실행하고, 공유 DNS·로그인 기록·메모와 `down` 뒤 DB 보존을 확인한다.

@@ -1,4 +1,6 @@
 from datetime import datetime
+import hmac
+import os
 
 from flask import Blueprint, jsonify, request
 
@@ -25,6 +27,9 @@ def list_events():
 @events.post("/events")
 @events.post("/api/events")
 def receive_event():
+    token = os.getenv("EVENT_TOKEN")
+    if not token or not hmac.compare_digest(request.headers.get("X-Event-Token", ""), token):
+        return jsonify(message="기록 전송 토큰이 올바르지 않습니다."), 403
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify(message="JSON 요청이 필요합니다."), 400

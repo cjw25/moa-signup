@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("MONITOR_SECRET_KEY", "test-secret-only-for-this-process")
+
 from werkzeug.security import generate_password_hash
 
 from app import create_app
@@ -24,6 +28,7 @@ def test_login_and_validation(monkeypatch):
 
 def test_event_and_note_routes(monkeypatch):
     monkeypatch.setenv("MONITOR_SECRET_KEY", "test-secret-only-for-this-process")
+    monkeypatch.setenv("EVENT_TOKEN", "test-event-token")
     stored_events = []
     stored_notes = {}
     next_id = iter(range(1, 100))
@@ -56,8 +61,9 @@ def test_event_and_note_routes(monkeypatch):
     with client.session_transaction() as session:
         session["user"] = {"id": 1, "username": "admin", "name": "운영자"}
 
-    assert client.post("/events", json={"method": "GET", "path": "/board/999", "status": 404, "timestamp": "2026-10-07T00:00:00+00:00"}).status_code == 204
-    assert client.post("/api/events", json={"method": "POST", "path": "/login", "status": 401, "event_type": "login_failure", "timestamp": "2026-10-07T00:00:00+00:00"}).status_code == 204
+    assert client.post("/events", json={"method": "GET", "path": "/board/999", "status": 404, "timestamp": "2026-10-07T00:00:00+00:00"}).status_code == 403
+    assert client.post("/events", headers={"X-Event-Token": "test-event-token"}, json={"method": "GET", "path": "/board/999", "status": 404, "timestamp": "2026-10-07T00:00:00+00:00"}).status_code == 204
+    assert client.post("/api/events", headers={"X-Event-Token": "test-event-token"}, json={"method": "POST", "path": "/login", "status": 401, "event_type": "login_failure", "timestamp": "2026-10-07T00:00:00+00:00"}).status_code == 204
     assert stored_events[-1]["event_type"] == "login_failure"
     assert client.get("/api/events").json[0]["status_code"] == 404
     assert len(client.get("/api/events?path=board&status=404").json) == 1

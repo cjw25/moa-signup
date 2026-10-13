@@ -20,9 +20,13 @@ def register_request_logging(app):
         }
         log.info("request %s", event)
         monitor_url = os.getenv("MONITOR_URL")
-        if monitor_url:
+        token = os.getenv("EVENT_TOKEN")
+        if monitor_url and token:
             try:
-                requests.post(monitor_url, json=event, timeout=2)
+                result = requests.post(monitor_url, json=event, headers={"X-Event-Token": token}, timeout=2)
+                result.raise_for_status()
             except requests.RequestException as exc:
                 log.warning("감시 서버 전송 실패: %s", exc)
+        elif monitor_url:
+            log.warning("EVENT_TOKEN이 없어 감시 서버 전송을 건너뜁니다.")
         return response

@@ -72,10 +72,11 @@ def test_login_sends_typed_events(monkeypatch):
     monkeypatch.setenv("GENERAL_SECRET_KEY", "unit-test-general-session-key")
     sent = []
     monkeypatch.setenv("MONITOR_URL", "http://monitor-api:5000/api/events")
+    monkeypatch.setenv("EVENT_TOKEN", "test-event-token")
     monkeypatch.setattr(auth, "find_user", lambda username: {
         "id": 1, "username": "student", "password_hash": generate_password_hash("Learn123!")
     } if username == "student" else None)
-    monkeypatch.setattr("request_logging.requests.post", lambda url, json, timeout: sent.append((url, json)))
+    monkeypatch.setattr("request_logging.requests.post", lambda url, json, headers, timeout: (sent.append((url, json, headers)) or type("Response", (), {"raise_for_status": lambda self: None})()))
     monkeypatch.setattr(posts, "list_posts", lambda: [])
     client = create_app().test_client()
 
@@ -85,6 +86,20 @@ def test_login_sends_typed_events(monkeypatch):
     assert client.post("/login", data={"username": "student", "password": "Learn123!"}).status_code == 303
     assert sent[-1][1]["event_type"] == "login_success"
     assert sent[-1][1]["status"] == 200
+    assert sent[-1][2]["X-Event-Token"] == "test-event-token"
     assert client.get("/").status_code == 200
     assert client.post("/logout").status_code == 303
     assert client.get("/").status_code == 302
+
+
+def test_sentry_exercise_requires_login_and_flag(monkeypatch):
+    monkeypatch.setenv("GENERAL_SECRET_KEY", "unit-test-general-session-key")
+    monkeypatch.delenv("MONITOR_URL", raising=False)
+    monkeypatch.setenv("ENABLE_SENTRY_TEST", "false")
+    client = create_app().test_client()
+    assert client.get("/api/sentry-test").status_code == 302
+    with client.session_transaction() as session:
+        session["user"] = {"id": 1, "username": "student"}
+    assert client.get("/api/sentry-test").status_code == 404
+    monkeypatch.setenv("ENABLE_SENTRY_TEST", "true")
+    assert client.get("/api/sentry-test").json["status"] == "ok"

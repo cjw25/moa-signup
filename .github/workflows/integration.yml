@@ -2,7 +2,7 @@ name: Board and monitor integration
 
 on:
   push:
-    branches: [feature/flask-postgresql-board]
+    branches: [main, day2-deploy]
   pull_request:
 
 jobs:
@@ -22,9 +22,11 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/mini_watch
-      MONITOR_URL: http://127.0.0.1:5200/events
+      MONITOR_URL: http://127.0.0.1:5200/api/events
+      EVENT_TOKEN: ci-only-event-token
       MONITOR_SECRET_KEY: ci-only-secret-key-for-session-tests
       GENERAL_SECRET_KEY: ci-only-general-session-key
+      MONITOR_API_URL: http://127.0.0.1:5200
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

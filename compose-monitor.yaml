@@ -21,8 +21,14 @@ services:
     build: ./monitor/backend
     environment:
       DB_HOST: monitor-db
-      DATABASE_URL: postgresql://monitor:${MONITOR_DB_PASSWORD:-monitor-practice-only}@monitor-db:5432/monitor_db
-      MONITOR_SECRET_KEY: ${MONITOR_SECRET_KEY:-monitor-practice-session-key-change-me}
+      DB_PORT: 5432
+      DB_NAME: monitor_db
+      DB_USER: monitor
+      DB_PASSWORD: ${MONITOR_DB_PASSWORD:-monitor-practice-only}
+      DB_SSLMODE: disable
+      SECRET_KEY: ${MONITOR_SECRET_KEY:-monitor-practice-session-key-change-me}
+      SESSION_COOKIE_SECURE: "false"
+      EVENT_TOKEN: ${EVENT_TOKEN:-local-practice-event-token}
     depends_on:
       monitor-db:
         condition: service_healthy
@@ -35,6 +41,8 @@ services:
 
   monitor-web:
     build: ./monitor/next-frontend
+    environment:
+      MONITOR_API_URL: http://monitor-api:5000
     depends_on:
       monitor-api:
         condition: service_healthy

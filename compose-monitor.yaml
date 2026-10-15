@@ -29,6 +29,11 @@ services:
       SECRET_KEY: ${MONITOR_SECRET_KEY:-monitor-practice-session-key-change-me}
       SESSION_COOKIE_SECURE: "false"
       EVENT_TOKEN: ${EVENT_TOKEN:-local-practice-event-token}
+      GENERAL_CAPTURE_URL: http://general-api:5000
+      CAPTURE_USERNAME: ${CAPTURE_USERNAME:-}
+      CAPTURE_PASSWORD: ${CAPTURE_PASSWORD:-}
+    volumes:
+      - ./monitor/backend/learning/data:/app/learning/data:ro
     depends_on:
       monitor-db:
         condition: service_healthy

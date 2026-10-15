@@ -3,6 +3,7 @@
 import json
 import subprocess
 import time
+from pathlib import Path
 
 import requests
 
@@ -72,6 +73,28 @@ def main():
     records = check(monitor.get(MONITOR + "/api/events"), 200).json()
     assert any(e["event_type"] == "login_failure" and e["status_code"] == 401 for e in records)
     assert any(e["event_type"] == "login_success" and e["status_code"] == 200 for e in records)
+    capture_args = ("exec", "-T", "-e", "CAPTURE_USERNAME=student", "-e", "CAPTURE_PASSWORD=Learn123!",
+                    "monitor-api", "python", "-m", "learning.capture_case")
+    exercise = json.loads(compose("monitor", *capture_args, "4"))
+    assert len(exercise["records"]) == 5
+    data_file = Path("monitor/backend/learning/data/observation.json")
+    data_file.write_text(json.dumps(exercise, ensure_ascii=False), encoding="utf-8")
+    assert json.loads(compose("monitor", "exec", "-T", "monitor-api", "python", "-m", "learning.lesson2"))["normalized_count"] == 5
+    assert json.loads(compose("monitor", "exec", "-T", "monitor-api", "python", "-m", "learning.lesson3"))["view_count"] == 4
+    assert json.loads(compose("monitor", "exec", "-T", "monitor-api", "python", "-m", "learning.lesson4", "10"))["candidate"] is False
+
+    boundary = check(monitor.post(MONITOR + "/api/analysis/start"), 200).json()["after_id"]
+    captured = json.loads(compose("monitor", *capture_args, "12"))
+    assert len(captured["records"]) == 13
+    first = check(monitor.get(MONITOR + "/api/analysis", params={"after_id": boundary, "threshold": 10}), 200).json()
+    assert first["observed_count"] == 12 and first["verdict"] == "검토 후보"
+    assert len(first["records"]) == len(first["evidence"]) == 13
+    second = check(monitor.get(MONITOR + "/api/analysis", params={"after_id": boundary, "threshold": 20,
+        "reference_time": first["reference_time"]}), 200).json()
+    assert second["observed_count"] == 12 and second["evidence"] == first["evidence"]
+    assert second["verdict"] == "기준 미해당"
+    empty_boundary = check(monitor.post(MONITOR + "/api/analysis/start"), 200).json()["after_id"]
+    assert check(monitor.get(MONITOR + "/api/analysis", params={"after_id": empty_boundary, "threshold": 10}), 200).json()["observed_count"] == 0
     note = check(monitor.post(MONITOR + "/api/notes", json={
         "title": "Docker 점검", "body": "로그인 실패와 성공을 확인했다", "status": "확인 전"
     }), 201).json()
@@ -92,7 +115,7 @@ def main():
     assert any(e["event_type"] == "login_success" for e in stored)
     compose("monitor", "ps")
     compose("general", "ps")
-    print("Docker gateway, shared network, login events, notes, and volume persistence passed")
+    print("Docker gateway, live capture, analysis evidence, login events, notes, and volume persistence passed")
 
 
 if __name__ == "__main__":

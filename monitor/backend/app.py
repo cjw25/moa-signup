@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 
-from db import connect_db
+from routes.analysis import analysis
 from routes.auth import auth
 from routes.events import events
 from routes.notes import notes
@@ -23,6 +23,7 @@ def create_app():
     app.register_blueprint(auth)
     app.register_blueprint(events)
     app.register_blueprint(notes)
+    app.register_blueprint(analysis)
 
     @app.get("/health")
     @app.get("/api/health")

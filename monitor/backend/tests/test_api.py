@@ -33,7 +33,7 @@ def test_event_and_note_routes(monkeypatch):
     stored_notes = {}
     next_id = iter(range(1, 100))
     monkeypatch.setattr(events.repo, "list_events", lambda path="", status=None: [event for event in stored_events if (not path or path in event["path"]) and (status is None or event["status_code"] == status)])
-    monkeypatch.setattr(events.repo, "create_event", lambda method, path, status, at, kind: stored_events.append({"id": 1, "method": method, "path": path, "status_code": status, "event_type": kind, "occurred_at": at.isoformat()}))
+    monkeypatch.setattr(events.repo, "create_event", lambda method, path, status, kind: stored_events.append({"id": len(stored_events) + 1, "method": method, "path": path, "status_code": status, "event_type": kind, "occurred_at": "2026-10-07T00:00:00+00:00"}))
     monkeypatch.setattr(notes.repo, "list_notes", lambda: list(stored_notes.values()))
     monkeypatch.setattr(notes.repo, "find_note", lambda id: stored_notes.get(id))
 

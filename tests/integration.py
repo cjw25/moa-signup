@@ -76,6 +76,25 @@ def main():
     check(board.post(BOARD + f"/board/{post_id}/delete", allow_redirects=False), 303)
     check(board.get(BOARD + detail_path), 404)
 
+    check(requests.get(API + "/analysis", params={"after_id": 0}), 401)
+    boundary = check(browser.post(API + "/analysis/start"), 200).json()["after_id"]
+    check(browser.get(API + "/analysis", params={"after_id": boundary, "threshold": "bad"}), 400)
+    for _ in range(12):
+        check(board.get(BOARD + "/"), 200)
+    check(board.get(BOARD + "/training-missing"), 404)
+    first = check(browser.get(API + "/analysis", params={"after_id": boundary, "threshold": 10}), 200).json()
+    assert first["observed_count"] == 12 and first["verdict"] == "검토 후보", first
+    assert len(first["view_ids"]) == 12 and len(first["following_error_ids"]) == 1
+    assert len(first["records"]) == len(first["evidence"]) == 13
+    assert all(row["id"].startswith("http-") and row["source"] == "http_live" for row in first["records"])
+    second = check(browser.get(API + "/analysis", params={"after_id": boundary, "threshold": 20,
+        "reference_time": first["reference_time"]}), 200).json()
+    assert second["observed_count"] == 12 and second["verdict"] == "기준 미해당"
+    assert second["evidence"] == first["evidence"] and second["reference_time"] == first["reference_time"]
+    empty_boundary = check(browser.post(API + "/analysis/start"), 200).json()["after_id"]
+    empty = check(browser.get(API + "/analysis", params={"after_id": empty_boundary, "threshold": 10}), 200).json()
+    assert empty["observed_count"] == 0 and empty["records"] == []
+
     events = check(browser.get(API + "/events"), 200).json()
     assert any(e["event_type"] == "login_failure" and e["status_code"] == 401 for e in events)
     assert any(e["event_type"] == "login_success" and e["status_code"] == 200 for e in events)
@@ -97,7 +116,7 @@ def main():
     assert any(n["id"] == note_id and n["body"] == "변경" and n["status"] == "완료" for n in check(browser.get(API + "/notes"), 200).json())
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         assert conn.execute("SELECT body, status FROM observation_notes WHERE id = %s", (note_id,)).fetchone() == ("변경", "완료")
-        assert conn.execute("SELECT COUNT(*) FROM request_events").fetchone()[0] > 0
+        assert conn.execute("SELECT COUNT(*) FROM http_events").fetchone()[0] > 0
     check(browser.delete(API + f"/notes/{note_id}"), 204)
     check(browser.get(API + f"/notes/{note_id}"), 404)
     check(browser.put(API + f"/notes/{note_id}", json={"title": "x", "body": "y"}), 404)

@@ -83,6 +83,15 @@ def main():
     assert json.loads(compose("monitor", "exec", "-T", "monitor-api", "python", "-m", "learning.lesson3"))["view_count"] == 4
     assert json.loads(compose("monitor", "exec", "-T", "monitor-api", "python", "-m", "learning.lesson4", "10"))["candidate"] is False
 
+    exact_boundary = check(monitor.post(MONITOR + "/api/analysis/start"), 200).json()["after_id"]
+    exact_capture = json.loads(compose("monitor", *capture_args, "10"))
+    assert len(exact_capture["records"]) == 11
+    exact = check(monitor.get(MONITOR + "/api/analysis", params={"after_id": exact_boundary, "threshold": 10}), 200).json()
+    assert exact["observed_count"] == 10 and exact["verdict"] == "검토 후보"
+    assert len(exact["view_ids"]) == 10 and len(exact["following_error_ids"]) == 1
+    assert len(exact["records"]) == len(exact["evidence"]) == 11
+    assert set(exact["evidence"]) == {f"http-{item['id']}" for item in exact_capture["records"]}
+
     boundary = check(monitor.post(MONITOR + "/api/analysis/start"), 200).json()["after_id"]
     captured = json.loads(compose("monitor", *capture_args, "12"))
     assert len(captured["records"]) == 13

@@ -54,6 +54,7 @@ docker compose -f compose-monitor.yaml exec monitor-db psql -U monitor -d monito
 | 상황 | 예상값 | 현재 확인 |
 |---|---|---|
 | 4회 + 404, 파일 실습 기준 10 | 정규화 5행, 조회 4행, 미해당 | Docker CI 통과; 개인 계정 로컬 실습 미확인 |
+| 10회 + 404, 화면 기준 10 | 관찰값 10, 검토 후보, 근거 11행 | Docker CI 실요청 검사 추가; 개인 계정 로컬 실습 미확인 |
 | 12회 + 404, 화면 기준 10 | 관찰값 12, 검토 후보, 근거 13행 | PostgreSQL·Docker CI 통과; 개인 계정 로컬 실습 미확인 |
 | 같은 구간 기준 20 | 관찰값·근거 ID 유지, 기준 미해당 | PostgreSQL·Docker CI 통과; 개인 계정 로컬 실습 미확인 |
 | 새 관찰 뒤 무요청 | 관찰값 0, 기존 DB 행 보존 | PostgreSQL·Docker CI 통과; 개인 계정 로컬 실습 미확인 |

@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 from event_rules import make_event
 from learning.http_rules import assess, find_following_errors, select_views
 from learning.normalize import normalize_event
+from learning.pcap_exercise import make_sample_pcap, summarize
+from learning.ioc_exercise import matches_ioc
 from learning.report import build_report
 
 
@@ -58,3 +60,12 @@ def test_exact_threshold_ten_is_a_candidate_with_eleven_evidence_rows():
     report = build_report(rows, 10, 0, datetime(2026, 10, 15, tzinfo=timezone.utc))
     assert report["observed_count"] == 10 and report["candidate"] is True
     assert len(report["view_ids"]) == 10 and len(report["evidence"]) == 11
+
+
+def test_optional_pcap_and_ioc_exercises_stay_independent():
+    sample = make_sample_pcap()
+    assert summarize(sample, 5) == {"window_seconds": 5, "packet_count": 4, "byte_sum": 34}
+    assert summarize(sample, 1) == {"window_seconds": 1, "packet_count": 2, "byte_sum": 18}
+    indicators = {"203.0.113.10"}
+    assert matches_ioc("203.0.113.10", indicators) is True
+    assert matches_ioc("198.51.100.7", indicators) is False

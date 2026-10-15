@@ -28,3 +28,9 @@ export const getNote = id => api(`/notes/${id}`);
 export const createNote = values => api("/notes", { method: "POST", body: JSON.stringify(values) });
 export const updateNote = (id, values) => api(`/notes/${id}`, { method: "PUT", body: JSON.stringify(values) });
 export const deleteNote = id => api(`/notes/${id}`, { method: "DELETE" });
+export const startObservation = () => api("/analysis/start", { method: "POST" });
+export const getAnalysis = (afterId, threshold, referenceTime) => {
+  const query = new URLSearchParams({ after_id: String(afterId), threshold: String(threshold) });
+  if (referenceTime) query.set("reference_time", referenceTime);
+  return api(`/analysis?${query}`);
+};

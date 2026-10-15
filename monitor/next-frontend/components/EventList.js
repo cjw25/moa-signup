@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const labels = { login_failure: "로그인 실패", login_success: "로그인 성공", http_request: "일반 요청" };
+const labels = { login_failure: "로그인 실패", login_success: "로그인 성공", http_request: "일반 요청", post_list: "게시글 목록", request_error: "요청 오류" };
 
 export default function EventList({ events, onRefresh }) {
   const [path, setPath] = useState("");

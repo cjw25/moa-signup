@@ -1,5 +1,81 @@
 # 모아 · 회원가입 프로젝트
 
+## Day3 실제 HTTP 요청 관찰 미니프로젝트
+
+이 저장소의 기존 Day2 일반 게시판(`general/`)과 감시 API(`monitor/backend/`), 감시 Next 화면(`monitor/next-frontend/`)을 이어서 사용한다. 기존 게시글·계정·메모·DB 볼륨은 지우지 않는다. 이번 변경은 요청 수집, `http_events` 저장, 실제 기록 캡처, 정규화·조회 선택, 60초 분석 API, 화면의 HTTP 카드다. 외부 클라우드 배포는 진행하지 않았다.
+
+### 구성과 데이터 흐름
+
+`general/app.py`의 `create_app()`이 `register_request_logging(app)`을 호출하고, `general/request_logging.py`가 `@app.after_request`에 `record_request`를 등록한다. 이 함수는 응답의 방법·경로·상태를 JSON으로 **표준 출력에 print**하고, 별도로 `MONITOR_URL`에 `X-Event-Token: EVENT_TOKEN`을 붙여 POST한다. 출력만 성공해도 감시 DB 저장이 성공했다는 뜻은 아니다. `/health`는 자동 점검 트래픽이 실습 기록에 섞이지 않도록 제외한다. `compose-general.yaml`의 `MONITOR_URL`은 감시 API의 `/api/events`를 가리키고, 두 Compose의 `EVENT_TOKEN` 값이 일치해야 한다.
+
+감시의 `routes/events.py:receive_event()`가 토큰·형식을 검증하고 `event_rules.py:make_event()`가 `GET /`의 `200`을 `post_list`, `/training-missing`의 `404`를 `request_error`로 분류한다. 기존 `login_failure`/`login_success`도 유지한다. `repositories/events.py:create_event()`는 감시 DB의 `http_events`에 넣고, **DB가 ID와 `occurred_at`을 수신·저장 시각으로 부여한다**. 일반 앱의 JSON `timestamp`는 전송 진단용이며 분석 기준시각이 아니다. 기존 볼륨의 `request_events`는 첫 접근 때 `http_events`로 이름을 바꿔 행을 보존한다. `general_users`, `posts`, `monitor_users`, `observation_notes`는 그대로 둔다.
+
+`learning/capture_case.py`는 로컬 일반 서비스에 로그인한 뒤 목록 GET을 지정 횟수만큼, 마지막에 `/training-missing` GET을 한 번 실제로 보낸다. 로그인 기록 다음의 DB ID를 경계로 잡아 이번 저장 행을 읽는다. 미리 만든 JSON이나 SQL INSERT로 요청을 대신하지 않는다. `learning/normalize.py:normalize_event()`는 원본 딕셔너리를 복사해 숫자 ID를 `http-원본ID`로 바꾸고 `source=http_live`, `kind=event_type`을 더한다. 방법·경로·상태·수신시각은 유지하며 없는 IP·사용자 필드를 만들지 않는다. 404도 이 단계에서는 남는다.
+
+`learning/http_rules.py:select_views()`는 **GET, 경로 `/`, 상태 200, 종류 `post_list`** 네 조건을 모두 만족하는 행 목록을 반환한다. 그 목록의 길이가 조회 횟수이고 같은 목록의 ID가 조회 근거다. `find_following_errors()`는 마지막 조회의 DB 수신시각 뒤 `0 < 간격 <= 30초`인 404를 전체 정규화 행에서 찾아 문맥 근거에만 더한다. 조회가 없으면 뒤따른 404도 없다. `assess()`는 `count >= threshold`로 판정한다. 따라서 통제한 12회 조회와 404 한 건의 **관찰값은 12, 근거는 13행**이다.
+
+`routes/analysis.py`의 로그인 보호 API는 새 관찰 때 현재 최대 ID만 저장하고 기존 행을 삭제하지 않는다. 결과 조회는 그 ID 이후이며 **첫 결과 요청의 기준시각으로부터 과거 60초**에 감시 DB가 받은 행을 `learning/support.py`에서 읽는다. 시작 버튼부터 60초를 자동 수집하는 타이머는 아니다. `learning/report.py:build_report()`가 같은 행으로 HTTP 카드 한 개의 관찰값·기준·판정·이유·`evidence` ID·`records`를 만든다. `components/AnalysisClient.js`는 새 관찰·기준 입력·결과 불러오기·근거 표를 연결한다. 기준 10에서 20으로 바꿔도 기존 `after_id`와 `reference_time`을 다시 보내므로 근거와 관찰값이 같다. 새 관찰을 누르면 화면의 이전 기준시각과 결과를 지운다. 표의 `http-` 뒤 숫자가 원본 DB ID다. 404는 같은 서비스에서 시간상 뒤따른 기록일 뿐 동일 사용자·IP, 인과관계나 침해를 입증하지 않는다. 기준 미해당도 정상이라는 증명이 아니다.
+
+### 로컬 실행과 확인 순서 (Windows CMD)
+
+저장소 루트에서 기존 일반·감시 DB와 계정을 준비한다. 첫 실행이면 `docker network create m5d1-events` 후 두 Compose를 `up -d --build`로 실행하고, 각 앱 폴더의 `create_user.py`로 계정을 만든다. 기존 볼륨이 있으면 `down -v`를 사용하지 않는다. 루트의 **Git에 넣지 않는** `.env`에 기존 일반 게시판 계정의 `CAPTURE_USERNAME`, `CAPTURE_PASSWORD`를 설정한다. `compose-monitor.yaml`이 두 값을 monitor-api 컨테이너에 넘긴다. 실제 비밀번호·세션 키·토큰은 제출하지 않는다.
+
+```cmd
+if not exist monitor\backend\learning\data mkdir monitor\backend\learning\data
+docker compose -f compose-monitor.yaml up -d --build
+docker compose -f compose-general.yaml up -d --build
+docker compose -f compose-monitor.yaml exec -T monitor-api python -m learning.capture_case 4 > monitor\backend\learning\data\observation-next.json && move /Y monitor\backend\learning\data\observation-next.json monitor\backend\learning\data\observation.json
+docker compose -f compose-monitor.yaml exec -T monitor-api python -m learning.lesson2
+docker compose -f compose-monitor.yaml exec -T monitor-api python -m learning.lesson3
+docker compose -f compose-monitor.yaml exec -T monitor-api python -m learning.lesson4 10
+docker compose -f compose-monitor.yaml exec -T monitor-api python -m learning.lesson5
+```
+
+각 명령이 성공한 다음 명령으로 넘어간다. `-T`와 `>`는 컨테이너의 JSON 출력을 PC 임시 파일에 저장하고, 성공했을 때만 `observation.json`으로 바꾼다. `learning/data`는 monitor-api에 읽기 전용으로 연결되어 있어 수업 파일 실습 네 개가 **같은 파일**을 읽는다. 실행 생성 JSON은 Git에서 제외한다. 4회 캡처의 예상은 원본 5행, 정규화 5행, 선택한 조회 4행, 기준 10 미해당이다. 실패하면 이전 `observation.json`을 이번 결과로 간주하지 않는다.
+
+감시 화면 `http://localhost:8082`에서 로그인하고 기준 10으로 **새 관찰 시작**을 누른 뒤 아래를 실행한다. 다른 탭에서 일반 게시판을 새로고침하지 않는다. 요청 뒤 **1분 이내에 처음 결과 불러오기**를 누른다. 그 결과의 기준시각이 고정된다.
+
+```cmd
+docker compose -f compose-monitor.yaml exec -T monitor-api python -m learning.capture_case 12 > monitor\backend\learning\data\observation-next.json && move /Y monitor\backend\learning\data\observation-next.json monitor\backend\learning\data\observation.json
+```
+
+예상 결과는 관찰값 12·기준 10·검토 후보, 조회 근거 12행과 뒤따른 404 한 행의 합계 13행이다. **새 관찰을 누르지 않고** 기준만 20으로 바꿔 결과를 다시 불러오면 같은 `after_id`·기준시각·근거 ID에서 관찰값 12·기준 미해당이 예상된다. 기준 10으로 되돌려 결과를 불러오면 다시 검토 후보가 예상된다. 새 관찰을 시작하고 일반 요청을 보내지 않으면 관찰값 0·근거 없음이 예상되며 이전 DB 행은 남는다. 결과 화면은 JSON 파일이 아니라 감시 DB를 직접 읽는다.
+
+오류·예상과 다른 개수·60초 경과가 있으면 일반 앱의 전송 경고, 감시 API 로그와 아래 원본 DB 행을 확인한다. 원인을 고친 뒤 **새 관찰 시작 → 캡처 → 1분 안의 첫 결과** 순으로 다시 진행한다. 숫자를 맞추려고 DB나 볼륨을 지우거나 JSON을 편집하지 않는다.
+
+```cmd
+docker compose -f compose-general.yaml logs --tail 20 general-api
+docker compose -f compose-monitor.yaml logs --tail 20 monitor-api
+docker compose -f compose-monitor.yaml exec monitor-db psql -U monitor -d monitor_db -c "SELECT id, occurred_at, method, path, status_code, event_type FROM http_events ORDER BY id DESC LIMIT 15;"
+```
+
+### 예상값과 실제 확인 상태
+
+| 상황 | 예상값 | 현재 확인 |
+|---|---|---|
+| 4회 + 404, 파일 실습 기준 10 | 정규화 5행, 조회 4행, 미해당 | Docker CI 통과; 개인 계정 로컬 실습 미확인 |
+| 12회 + 404, 화면 기준 10 | 관찰값 12, 검토 후보, 근거 13행 | PostgreSQL·Docker CI 통과; 개인 계정 로컬 실습 미확인 |
+| 같은 구간 기준 20 | 관찰값·근거 ID 유지, 기준 미해당 | PostgreSQL·Docker CI 통과; 개인 계정 로컬 실습 미확인 |
+| 새 관찰 뒤 무요청 | 관찰값 0, 기존 DB 행 보존 | PostgreSQL·Docker CI 통과; 개인 계정 로컬 실습 미확인 |
+
+### 선택 실습
+
+- **PCAP 분리:** `python -m learning.pcap_exercise`는 자체 생성한 교육용 PCAP에서 처음 5초의 패킷 4개·바이트 34, 처음 1초의 패킷 2개·바이트 18을 계산한다. 시간 폭을 줄이면 뒤의 두 패킷이 제외된다. 실제 게시판 캡처가 아니며 HTTP 카드에 섞지 않는다.
+- **IOC 일치:** `python -m learning.ioc_exercise`는 문서용 IP `203.0.113.10`의 일치와 `198.51.100.7`의 불일치를 보여 준다. 실제 `http_events`에는 IP 열이 없으므로 이 결과로 요청자나 사용자를 식별하지 않는다.
+- **기준 경계:** 기준 10으로 새 관찰을 시작하고 아래 명령을 실행해 1분 이내 결과를 읽으면 `10 >= 10`이므로 검토 후보, 조회 10행 + 404 1행 = 근거 11행이 예상된다. 다음에는 **다시 새 관찰 시작**을 누르고 위의 `capture_case 12` 명령으로 기본 사례를 만든다. 데이터 삭제는 필요 없다.
+- **AI 후보 코드 검토:** 아래 순수 함수 후보를 현재 구현과 대조했다. `status_code == 404`를 조회 횟수에 더하고 GET·경로·상태·종류의 네 조건을 빠뜨려 거절했다. 마지막 조회 뒤 30초의 문맥 선택도 없으므로 `find_following_errors()`를 따로 써야 한다. `count > threshold`이면 정확히 10회·기준 10을 놓치므로 현재의 `>=`를 채택했다. 후보는 근거 ID를 계산하지 않으므로 현재처럼 같은 `select_views()` 목록에서 개수와 ID를 함께 구한다. 이는 코드 비교이며 모델 API를 호출하거나 실제 로그·비밀값을 외부에 보내지 않았다.
+
+```cmd
+docker compose -f compose-monitor.yaml exec -T monitor-api python -m learning.capture_case 10 > monitor\backend\learning\data\observation-next.json && move /Y monitor\backend\learning\data\observation-next.json monitor\backend\learning\data\observation.json
+```
+
+```python
+def candidate(events, threshold):
+    count = sum(event["path"] == "/" or event["status_code"] == 404 for event in events)
+    return count > threshold
+```
+
+
 ## Day2 일반·감시 미니프로젝트
 
 기존 Day1 Flask 게시판(`general/`), Flask 감시 API(`monitor/backend/`), 감시 Next.js 화면(`monitor/next-frontend/`)을 `day2-deploy` 브랜치에서 배포용으로 연결했습니다. 세 앱의 Render 설정, 별도 Supabase DB, 서버 프록시, Sentry 및 오류 수정 내역은 [deployment-plan.md](deployment-plan.md)를 보세요. 이 저장소의 기존 회원가입 프로젝트는 아래 설명대로 유지됩니다.

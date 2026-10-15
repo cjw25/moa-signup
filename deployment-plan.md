@@ -19,7 +19,7 @@
 
 일반 Supabase 프로젝트의 Session pooler **Host/User**를 `general/.env.example`의 `DB_HOST`/`DB_USER`에, 별도 감시 Supabase 프로젝트의 Host/User를 `monitor/backend/.env.example`에 대응시킨다. 두 프로젝트 모두 포트 `5432`, DB 이름 `postgres`, `DB_SSLMODE=require`를 쓴다. 두 DB의 이름이 같아도 서로 다른 프로젝트다. 수업용 프로젝트의 Data API를 끄고 Flask가 PostgreSQL에 직접 연결한다. RLS 정책은 이 과제 범위에 추가하지 않는다. 실제 `DB_PASSWORD`는 각 서비스 환경 변수에만 둔다. 로컬 Compose PostgreSQL은 SSL 없이 각각 다른 DB/볼륨을 사용한다. 기존 `DATABASE_URL` 방식은 CI 호환을 위한 대체 경로이며 `DB_HOST`가 있으면 분리된 DB 변수를 우선한다.
 
-일반 프로젝트에서는 `general/sql/deploy.sql`을, 감시 프로젝트에서는 `monitor/backend/sql/deploy.sql`을 실행한다. 실제 코드가 사용하는 이름은 일반 `general_users`(users), `posts`, 감시 `monitor_users`(users), `request_events`(http_events), `observation_notes`(notes)다. 배포 SQL은 `CREATE TABLE IF NOT EXISTS`와 누락 열의 `ADD COLUMN IF NOT EXISTS`만 사용하며 기존 자료를 삭제하지 않는다. 두 Flask 폴더별 로컬 가상환경에서 의존성을 설치하고 해당 DB 환경 변수로 `python create_user.py`를 실행해 비밀번호 해시를 저장한다. 각 앱은 자신의 DB에서 게시글/메모 CRUD를 수행하므로 앱 재시작과 재배포 후에도 같은 외부 DB를 다시 읽는다.
+일반 프로젝트에서는 `general/sql/deploy.sql`을, 감시 프로젝트에서는 `monitor/backend/sql/deploy.sql`을 실행한다. 실제 코드가 사용하는 이름은 일반 `general_users`(users), `posts`, 감시 `monitor_users`(users), `http_events`, `observation_notes`(notes)다. Day3의 `http_events`는 기존 `request_events`가 있으면 테이블 이름을 바꿔 행을 보존한다. 배포 SQL은 기존 자료를 삭제하지 않는다. 두 Flask 폴더별 로컬 가상환경에서 의존성을 설치하고 해당 DB 환경 변수로 `python create_user.py`를 실행해 비밀번호 해시를 저장한다. 각 앱은 자신의 DB에서 게시글/메모 CRUD를 수행하므로 앱 재시작과 재배포 후에도 같은 외부 DB를 다시 읽는다.
 
 | 환경 변수 | 설정 위치와 역할 |
 |---|---|

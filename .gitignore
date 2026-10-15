@@ -14,3 +14,4 @@ backend/data/*
 *.log
 .run/
 *.sqlite3
+monitor/backend/learning/data/*.json

@@ -53,17 +53,27 @@ docker compose -f compose-monitor.yaml exec monitor-db psql -U monitor -d monito
 
 | 상황 | 예상값 | 현재 확인 |
 |---|---|---|
-| 4회 + 404, 파일 실습 기준 10 | 정규화 5행, 조회 4행, 미해당 | 순수 함수 테스트로 확인; 로컬 Docker 실행 미확인 |
-| 12회 + 404, 화면 기준 10 | 관찰값 12, 검토 후보, 근거 13행 | CI 통합 테스트 대상; 개인 계정 로컬 실습 미확인 |
-| 같은 구간 기준 20 | 관찰값·근거 ID 유지, 기준 미해당 | CI 통합 테스트 대상; 개인 계정 로컬 실습 미확인 |
-| 새 관찰 뒤 무요청 | 관찰값 0, 기존 DB 행 보존 | CI 통합 테스트 대상; 개인 계정 로컬 실습 미확인 |
+| 4회 + 404, 파일 실습 기준 10 | 정규화 5행, 조회 4행, 미해당 | Docker CI 통과; 개인 계정 로컬 실습 미확인 |
+| 12회 + 404, 화면 기준 10 | 관찰값 12, 검토 후보, 근거 13행 | PostgreSQL·Docker CI 통과; 개인 계정 로컬 실습 미확인 |
+| 같은 구간 기준 20 | 관찰값·근거 ID 유지, 기준 미해당 | PostgreSQL·Docker CI 통과; 개인 계정 로컬 실습 미확인 |
+| 새 관찰 뒤 무요청 | 관찰값 0, 기존 DB 행 보존 | PostgreSQL·Docker CI 통과; 개인 계정 로컬 실습 미확인 |
 
 ### 선택 실습
 
 - **PCAP 분리:** `python -m learning.pcap_exercise`는 자체 생성한 교육용 PCAP에서 처음 5초의 패킷 4개·바이트 34, 처음 1초의 패킷 2개·바이트 18을 계산한다. 시간 폭을 줄이면 뒤의 두 패킷이 제외된다. 실제 게시판 캡처가 아니며 HTTP 카드에 섞지 않는다.
 - **IOC 일치:** `python -m learning.ioc_exercise`는 문서용 IP `203.0.113.10`의 일치와 `198.51.100.7`의 불일치를 보여 준다. 실제 `http_events`에는 IP 열이 없으므로 이 결과로 요청자나 사용자를 식별하지 않는다.
-- **기준 경계:** 기준 10으로 새 관찰을 시작하고 `learning.capture_case 10`을 실행해 1분 이내 결과를 읽으면 `10 >= 10`이므로 검토 후보, 조회 10행 + 404 1행 = 근거 11행이 예상된다. 다음에는 다시 새 관찰을 시작하고 `learning.capture_case 12`로 기본 사례를 만든다. 데이터 삭제는 필요 없다.
-- **AI 후보 코드 검토:** 후보가 `status_code == 404`를 조회 횟수에 더하면 `select_views()`의 네 조건과 달라 거절한다. 후보가 마지막 조회 이전/30초 초과의 404를 포함하면 `find_following_errors()`의 `0 < gap <= 30`으로 수정해야 한다. `count > threshold`이면 정확히 10회·기준 10을 놓치므로 `>=`를 채택한다. 조회 개수와 근거 ID를 다른 쿼리에서 만들면 서로 다른 행이 될 수 있어, 현재처럼 같은 선택 목록에서 둘 다 계산하는 방식을 채택한다. 이는 코드 비교이며 모델 API를 호출하거나 실제 로그·비밀값을 외부에 보내지 않았다.
+- **기준 경계:** 기준 10으로 새 관찰을 시작하고 아래 명령을 실행해 1분 이내 결과를 읽으면 `10 >= 10`이므로 검토 후보, 조회 10행 + 404 1행 = 근거 11행이 예상된다. 다음에는 **다시 새 관찰 시작**을 누르고 위의 `capture_case 12` 명령으로 기본 사례를 만든다. 데이터 삭제는 필요 없다.
+- **AI 후보 코드 검토:** 아래 순수 함수 후보를 현재 구현과 대조했다. `status_code == 404`를 조회 횟수에 더하고 GET·경로·상태·종류의 네 조건을 빠뜨려 거절했다. 마지막 조회 뒤 30초의 문맥 선택도 없으므로 `find_following_errors()`를 따로 써야 한다. `count > threshold`이면 정확히 10회·기준 10을 놓치므로 현재의 `>=`를 채택했다. 후보는 근거 ID를 계산하지 않으므로 현재처럼 같은 `select_views()` 목록에서 개수와 ID를 함께 구한다. 이는 코드 비교이며 모델 API를 호출하거나 실제 로그·비밀값을 외부에 보내지 않았다.
+
+```cmd
+docker compose -f compose-monitor.yaml exec -T monitor-api python -m learning.capture_case 10 > monitor\backend\learning\data\observation-next.json && move /Y monitor\backend\learning\data\observation-next.json monitor\backend\learning\data\observation.json
+```
+
+```python
+def candidate(events, threshold):
+    count = sum(event["path"] == "/" or event["status_code"] == 404 for event in events)
+    return count > threshold
+```
 
 
 ## Day2 일반·감시 미니프로젝트

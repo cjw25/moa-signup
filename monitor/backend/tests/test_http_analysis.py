@@ -50,3 +50,11 @@ def test_twelve_views_are_counted_without_the_following_404():
     assert first["count"] == second["count"] == 12
     assert first["candidate"] is True and second["candidate"] is False
     assert len(first["view_ids"]) == 12 and len(first["following_errors"]) == 1
+
+
+def test_exact_threshold_ten_is_a_candidate_with_eleven_evidence_rows():
+    rows = [normalize_event(row(number, number)) for number in range(1, 11)]
+    rows.append(normalize_event(row(11, 11, path="/training-missing", status=404, kind="request_error")))
+    report = build_report(rows, 10, 0, datetime(2026, 10, 15, tzinfo=timezone.utc))
+    assert report["observed_count"] == 10 and report["candidate"] is True
+    assert len(report["view_ids"]) == 10 and len(report["evidence"]) == 11
